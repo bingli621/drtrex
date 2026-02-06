@@ -1,0 +1,9 @@
+*.pyc
+uv.lock
+src/trex/egg-info/*.*
+
+src/trex.egg-info/dependency_links.txt
+src/trex.egg-info/PKG-INFO
+src/trex.egg-info/requires.txt
+src/trex.egg-info/SOURCES.txt
+src/trex.egg-info/top_level.txt
