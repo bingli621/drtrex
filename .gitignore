@@ -7,3 +7,5 @@ src/trex.egg-info/PKG-INFO
 src/trex.egg-info/requires.txt
 src/trex.egg-info/SOURCES.txt
 src/trex.egg-info/top_level.txt
+jupyter/.DS_Store
+.DS_Store
