@@ -1,11 +1,7 @@
-import json
-
-
-import scipp as sc
-import numpy as np
 from typing import Literal
+import scipp as sc
 import tof
-import scipp.constants as const
+from trex.chopper import ChopperParameters, Chopper
 
 
 class Instrument(object):
@@ -25,23 +21,133 @@ class Instrument(object):
         self.t_offset = t_offset
 
         self.source = source
-        # self.source_wavelength_range = sc.array(dims=['wavelength'], values=[],unit='Å')
-        self.m_frequency = self.source.frequency * self.rrm
+
+        self.bw_frequency, self.m_frequency, self.ps_frequency = (
+            self.get_chopper_frequency(source.frequency, rrm)
+        )
+        self.choppers = [self.bw1, self.bw2, self.ps1, self.ps2, self.m1, self.m2]
+
+        # DEL_L = sc.scalar(0.02, unit="m")  # Effective flight path uncertainty
+
+    def __str__(self) -> str:
+        return (
+            f"T-Rex running in {self.mode} mode, "
+            + f"with cententral wavelength = {self.wavelength.value:.2f} Å, "
+            + f"RRM = {self.rrm}."
+        )
+
+    @staticmethod
+    def get_chopper_frequency(source_frequency, rrm: int):
+        """Get the frequencies of BW, PS and M-choppers. RRM needs to be multiples of 4
+        Note:
+            L_PS / L_M = 3/4"""
+        if not (rrm // 4):
+            raise ValueError(f"RRM = {rrm} needs to be multiples of 4.")
+
+        bw_frequency = source_frequency
+        m_frequency = bw_frequency * rrm
+        m_frequency_max = sc.scalar(336, unit="Hz")  # Max frequency of PS choppers
+        if m_frequency > m_frequency_max:
+            raise ValueError(
+                f"""Monochromatic chopper frequency = {m_frequency.value:.5g} Hz is 
+                             larger than the maximum frequency of {m_frequency_max.value} Hz"""
+            )
         # fp = LM/LP * fM /2, for P choppers have two sets of slits
         # P chopper can be further slowed down by deviding an integer
         # however the frequency must be multiles of BW frequency = 14 Hz
-        self.p_frequency = self.m_frequency * 0.75 / 1
+        ps_frequency = m_frequency * 0.75 / 1
+        if ps_frequency > (ps_frequency_max := sc.scalar(252, unit="Hz")):
+            raise ValueError(
+                f"""Pulse shaping chopper frequency = {ps_frequency.value:.5g} Hz is 
+                             larger than the maximum frequency of {ps_frequency_max.value} Hz"""
+            )
 
-        self.p_frequency_max = sc.scalar(252, unit="Hz")  # Max frequency of PS choppers
-        self.m_frequency_max = sc.scalar(336, unit="Hz")  # Max frequency of PS choppers
+        return (bw_frequency, ps_frequency, m_frequency)
 
-        DEL_L = sc.scalar(0.02, unit="m")  # Effective flight path uncertainty
+    @property
+    def bw1(self):
+        params = ChopperParameters(
+            name="Bandwidth Chopper 1",
+            wavelength=self.wavelength,
+            frequency=self.bw_frequency,
+            distance=sc.scalar(31.964, unit="m"),  # Source to BW chopper 1,
+            centers=sc.array(dims=["cutout"], values=(0.0,), unit="deg"),
+            widths=sc.array(dims=["cutout"], values=(61.4,), unit="deg"),
+            time_shift=self.t_offset,
+            direction=tof.AntiClockwise,
+        )
+        return Chopper(params)
 
-    def __str__(self) -> str:
-        return f"""T-Rex running with cententral wavelength = {self.wavelength:.5g} Å, RRM = {self.rrm}."""
+    @property
+    def bw2(self):
+        params = ChopperParameters(
+            name="Bandwidth Chopper 2",
+            wavelength=self.wavelength,
+            frequency=self.bw_frequency,
+            distance=sc.scalar(31.987, unit="m"),
+            centers=sc.array(dims=["cutout"], values=(0.0,), unit="deg"),
+            widths=sc.array(dims=["cutout"], values=(63.3,), unit="deg"),
+            time_shift=self.t_offset,
+            direction=tof.AntiClockwise,
+        )
+        return Chopper(params)
 
-    @staticmethod
-    def load_parameter(path_to_file="trex_params.json"):
-        with open(path_to_file) as params:
-            d = json.load(params)
-        return d
+    @property
+    def ps1(self):
+        params = ChopperParameters(
+            name="Pulse Shapping Chopper 1",
+            mode=self.mode,
+            wavelength=self.wavelength,
+            frequency=self.ps_frequency,
+            distance=sc.scalar(107.95, unit="m"),
+            centers=sc.array(dims=["cutout"], values=(0, -55, -180, -235), unit="deg"),
+            widths=sc.array(dims=["cutout"], values=(20, 35, 20, 35), unit="deg"),
+            time_shift=self.t_offset,
+            direction=tof.AntiClockwise,
+        )
+        return Chopper(params)
+
+    @property
+    def ps2(self):
+        params = ChopperParameters(
+            name="Pulse Shapping Chopper 2",
+            mode=self.mode,
+            wavelength=self.wavelength,
+            frequency=self.ps_frequency,
+            distance=sc.scalar(108.05, unit="m"),
+            centers=sc.array(dims=["cutout"], values=(0, -55, -180, -235), unit="deg"),
+            widths=sc.array(dims=["cutout"], values=(20, 35, 20, 35), unit="deg"),
+            time_shift=self.t_offset,
+            direction=tof.Clockwise,
+        )
+        return Chopper(params)
+
+    @property
+    def m1(self):
+        params = ChopperParameters(
+            name="Monochromatic Chopper 1",
+            mode=self.mode,
+            wavelength=self.wavelength,
+            frequency=self.m_frequency,
+            distance=sc.scalar(161.995, unit="m"),
+            centers=sc.array(dims=["cutout"], values=(-180, +5), unit="deg"),
+            widths=sc.array(dims=["cutout"], values=(2.5, 4.3), unit="deg"),
+            time_shift=self.t_offset,
+            direction=tof.AntiClockwise,
+        )
+        return Chopper(params)
+
+    @property
+    def m2(self):
+        params = ChopperParameters(
+            name="Monochromatic Chopper 2",
+            mode=self.mode,
+            wavelength=self.wavelength,
+            frequency=self.m_frequency,
+            distance=sc.scalar(162.005, unit="m"),
+            centers=sc.array(dims=["cutout"], values=(0, -175), unit="deg"),
+            widths=sc.array(dims=["cutout"], values=(2.5, 4.3), unit="deg"),
+            time_shift=self.t_offset,
+            direction=tof.Clockwise,
+        )
+        return Chopper(params)

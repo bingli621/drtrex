@@ -30,17 +30,13 @@ def bw1_params():
     central_wavelength = sc.scalar(1.0, unit="Å")
     frequency = sc.scalar(14.0, unit="Hz")
 
-    L_BW1 = sc.scalar(31.964, unit="m")  # Source to BW chopper 1
-    THETA_POS_BW1 = sc.array(dims=["cutout"], values=(0.0,), unit="deg")
-    THETA_WIDTH_BW1 = sc.array(dims=["cutout"], values=(61.4,), unit="deg")
-
     bw1_params = ChopperParameters(
         name="Bandwidth Chopper 1",
         wavelength=central_wavelength,
         frequency=frequency,
-        distance=L_BW1,
-        centers=THETA_POS_BW1,
-        widths=THETA_WIDTH_BW1,
+        distance=sc.scalar(31.964, unit="m"),  # Source to BW chopper 1,
+        centers=sc.array(dims=["cutout"], values=(0.0,), unit="deg"),
+        widths=sc.array(dims=["cutout"], values=(61.4,), unit="deg"),
         time_shift=T_OFFSET,
         direction=tof.AntiClockwise,
     )
