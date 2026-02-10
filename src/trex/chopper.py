@@ -38,7 +38,7 @@ class Chopper(tof.Chopper):  # type: ignore
         )
 
     @staticmethod
-    def get_angle_offset(centers: sc.Variable, mode: str):
+    def get_angle_offset(centers: sc.Variable, mode: Optional[str]):
         """Get angle offset for the given mode, assuming the first set of slits are for
         the 'High Resolution' mode, and the secend sets are for the 'High Flux' mode.
 

@@ -22,11 +22,17 @@ class Instrument(object):
 
         self.source = source
 
-        self.bw_frequency, self.m_frequency, self.ps_frequency = (
+        self.bw_frequency, self.ps_frequency, self.m_frequency = (
             self.get_chopper_frequency(source.frequency, rrm)
         )
         self.choppers = [self.bw1, self.bw2, self.ps1, self.ps2, self.m1, self.m2]
-
+        self.detectors = [
+            self.monitor1,
+            self.monitor2,
+            self.monitor3,
+            self.monitor_sample,
+            self.detector,
+        ]
         # DEL_L = sc.scalar(0.02, unit="m")  # Effective flight path uncertainty
 
     def __str__(self) -> str:
@@ -84,7 +90,7 @@ class Instrument(object):
             name="Bandwidth Chopper 2",
             wavelength=self.wavelength,
             frequency=self.bw_frequency,
-            distance=sc.scalar(31.987, unit="m"),
+            distance=sc.scalar(39.987, unit="m"),
             centers=sc.array(dims=["cutout"], values=(0.0,), unit="deg"),
             widths=sc.array(dims=["cutout"], values=(63.3,), unit="deg"),
             time_shift=self.t_offset,
@@ -151,3 +157,32 @@ class Instrument(object):
             direction=tof.Clockwise,
         )
         return Chopper(params)
+
+    @property
+    def monitor1(self):
+        L_BM1 = sc.scalar(41.98786, unit="m")  # Position of Beam monitor 1
+        return tof.Detector(distance=L_BM1, name="monitor 1")  # type: ignore
+
+    @property
+    def monitor2(self):
+        L_BM2 = sc.scalar(110.99, unit="m")  # Position of Beam monitor 2
+        return tof.Detector(distance=L_BM2, name="monitor 2")  # type: ignore
+
+    @property
+    def monitor3(self):
+        L_BM3 = sc.scalar(163.2, unit="m")  # Tentative position of Beam monitor 3
+        return tof.Detector(distance=L_BM3, name="monitor 3")  # type: ignore
+
+    @property
+    def monitor_sample(self):
+        L_SAMPLE = sc.scalar(163.8, unit="m")  # Source to sample in m
+        return tof.Detector(distance=L_SAMPLE, name="sample")  # type: ignore
+
+    @property
+    def detector(self):
+        L_DETECTOR = sc.scalar(166.8, unit="m")  # Source to sample in m
+        return tof.Detector(distance=L_DETECTOR, name="detector")  # type: ignore
+
+    @property
+    def model(self):
+        return tof.Model(source=self.source, detectors=self.detectors, choppers=self.choppers)  # type: ignore
