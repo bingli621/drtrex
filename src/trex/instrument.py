@@ -254,3 +254,54 @@ class Instrument(object):
             energy = tof.utils.speed_to_energy(speed) / 2  # TOF missed a factor of 2
             energy_list.append(energy)
         return energy_list
+
+    # TODO
+    def calculate_toa_at(self, component_name: str, RRM=False, wavelength_range=None):
+        """Calculate time of arrival at a given component in microseconds
+        Use wavelength_range = (min,max) to limit the range of interest"""
+        try:
+            component = getattr(self, component_name)
+        except AttributeError:
+            print(f"{component_name} does not exist.")
+            return None
+
+        distance = component.distance
+        central_wavelength = self.wavelength
+        delta_lambda = self.calculate_delta_lambda()
+        if RRM:
+            n = int(self.rrm / 2)
+            wavelength_array = sc.empty(
+                dims=["wavelength"], shape=[2 * n + 1], unit="Å"
+            )
+            for i in range(2 * n + 1):
+                wavelength_array[i] = central_wavelength + (i - n) * delta_lambda
+
+            wavelength_min, wavelength_max = (
+                self.calculate_bandwidth()
+                if wavelength_range is None
+                else wavelength_range
+            )
+
+            wavelength_array = wavelength_array[
+                (wavelength_array > wavelength_min)
+                & (wavelength_array < wavelength_max)
+            ]
+
+        else:
+            wavelength_array = sc.array(
+                dims=["wavelength"], values=[central_wavelength.value], unit="Å"
+            )
+
+        speed_array = tof.utils.wavelength_to_speed(wavelength_array)
+        toa_array = (distance / speed_array + self.t_offset).to(unit="us")
+        return sc.array(dims=["toa"], values=toa_array.values, unit=toa_array.unit)
+
+    # TODO
+    @staticmethod
+    def centers_to_edges(centers, dim=None):
+        """return bin edges with the given center values"""
+        dim = centers.dim if dim is None else dim
+        mid = (centers[:-1] + centers[1:]) / 2
+        first = centers[0] - (mid[0] - centers[0])
+        last = centers[-1] + (centers[-1] - mid[-1])
+        return sc.concat([first, mid, last], dim=dim)
