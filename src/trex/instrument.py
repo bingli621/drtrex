@@ -253,30 +253,27 @@ class Instrument(object):
 
         return (wavelength_min, wavelength_max)
 
-    # TODO convert to sc.array
-    def calculate_incoming_wavelength(self, bandwidth=None) -> List[sc.Variable]:
+    def calculate_incoming_wavelength(self, bandwidth=None) -> sc.Variable:
         bandwidth = self.calculate_bandwidth() if bandwidth is None else bandwidth
         bw_min, bw_max = bandwidth
         del_lambda = self.calculate_delta_lambda()
-        wavelength_list = [self.wavelength]
+        wavelength_list = [self.wavelength.value]
         for i in range(1, int(self.rrm / 2 + 1)):
             if (w_plus := self.wavelength + i * del_lambda) < bw_max:
-                wavelength_list.append(w_plus)
+                wavelength_list.append(w_plus.value)
             if (w_minus := self.wavelength - i * del_lambda) > bw_min:
-                wavelength_list.append(w_minus)
+                wavelength_list.append(w_minus.value)
         wavelength_list.sort()
-        return wavelength_list
+        return sc.array(dims=["wavelength"], values=wavelength_list, unit="Å")
 
-    # TODO convert to sc.array
     # FIXME TOF missed a factor of 2, so I am dividing it
-    def calculate_incoming_energy(self, bandwidth=None) -> List[sc.Variable]:
-        wavelength_list = self.calculate_incoming_wavelength(bandwidth)
-        energy_list = []
-        for wavelength in wavelength_list:
-            speed = tof.utils.wavelength_to_speed(wavelength)
-            energy = tof.utils.speed_to_energy(speed) / 2  # TOF missed a factor of 2
-            energy_list.append(energy)
-        return energy_list
+    def calculate_incoming_energy(self, bandwidth=None) -> sc.Variable:
+        wavelength_array = self.calculate_incoming_wavelength(bandwidth)
+
+        speed = tof.utils.wavelength_to_speed(wavelength_array)
+        energy = tof.utils.speed_to_energy(speed) / 2
+        energy_array = sc.array(dims=["energy"], values=energy.values, unit=energy.unit)
+        return energy_array
 
     # TODO
     def calculate_toa_at(self, component_name: str, RRM=False, wavelength_range=None):
