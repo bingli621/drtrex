@@ -4,6 +4,7 @@ import scipp as sc
 import tof
 from trex.chopper import ChopperParameters, Chopper
 import scipp.constants as const
+from scippneutron.tof import chopper_cascade
 
 
 class Instrument(object):
@@ -15,12 +16,7 @@ class Instrument(object):
         t_offset=sc.scalar(0.0, unit="s"),
         source=tof.Source(facility="ess", neutrons=1_000_000, pulses=1),  # type: ignore
     ) -> None:
-        """Initialize instrument with central wavelength and repitition rate RRM
-
-        Attributes:
-            time_limit: time needed for the slowest incomnig beam out of the RRM to
-            propagate to detector position.
-        """
+        """Initialize instrument with central wavelength and repitition rate RRM"""
 
         self.wavelength = wavelength
         self.rrm: int = rrm
@@ -32,24 +28,11 @@ class Instrument(object):
         self.bw_frequency, self.ps_frequency, self.m_frequency = (
             self.calculate_chopper_frequency(source.frequency, rrm)
         )
-        self.choppers = [self.bw1, self.bw2, self.ps1, self.ps2, self.m1, self.m2]
+        choppers = [self.bw1, self.bw2, self.ps1, self.ps2, self.m1, self.m2]
+        self.choppers = {chopper.name: chopper for chopper in choppers}
 
-        self.detectors = [
-            self.monitor1,
-            self.monitor2,
-            self.monitor3,
-            self.monitor_sample,
-            self.detector,
-        ]
-
-        time_limit = self._calculate_time_limit(self.detector.distance)
-        self.chopper_cascade = sc.DataGroup(
-            {
-                k: v
-                for c in self.choppers
-                for k, v in c.to_chopper_cascade(time_limit).items()
-            }
-        )
+        detectors = [self.mon1, self.mon2, self.mon3, self.mon_sample, self.detector]
+        self.detectors = {detector.name: detector for detector in detectors}
 
         # DEL_L = sc.scalar(0.02, unit="m")  # Effective flight path uncertainty
 
@@ -63,10 +46,18 @@ class Instrument(object):
         )
 
     def _calculate_time_limit(self, distance):
-        wavelength_max = sc.max(self.calculate_incoming_wavelength())
+        """Time needed for the slowest incomnig beam out of the RRM to
+        propagate to detector position."""
+        wavelength_max = self.wavelength + self.calculate_delta_lambda() * self.rrm / 2
         speed_min = tof.utils.wavelength_to_speed(wavelength_max)
         time_max = distance / speed_min
         return time_max
+
+    def _validate_component(self, component_name):
+        component = (self.choppers | self.detectors).get(component_name, None)
+        if component is None:
+            raise AttributeError(f"{component_name} does not exist.")
+        return component
 
     @staticmethod
     def calculate_chopper_frequency(source_frequency, rrm: int):
@@ -133,7 +124,7 @@ class Instrument(object):
     @property
     def ps1(self):
         params = ChopperParameters(
-            name="Pulse Shapping Chopper 1",
+            name="Pulse Shaping Chopper 1",
             mode=self.mode,
             wavelength=self.wavelength,
             frequency=self.ps_frequency,
@@ -148,7 +139,7 @@ class Instrument(object):
     @property
     def ps2(self):
         params = ChopperParameters(
-            name="Pulse Shapping Chopper 2",
+            name="Pulse Shaping Chopper 2",
             mode=self.mode,
             wavelength=self.wavelength,
             frequency=self.ps_frequency,
@@ -191,22 +182,32 @@ class Instrument(object):
         return Chopper(params)
 
     @property
-    def monitor1(self):
+    def chopper_cascade(self):
+        time_limit = self._calculate_time_limit(self.detector.distance)
+        return sc.DataGroup(
+            {
+                name: chopper.to_chopper_cascade(time_limit)[name]
+                for name, chopper in self.choppers.items()
+            }
+        )
+
+    @property
+    def mon1(self):
         L_BM1 = sc.scalar(41.98786, unit="m")  # Position of Beam monitor 1
         return tof.Detector(distance=L_BM1, name="Monitor 1")  # type: ignore
 
     @property
-    def monitor2(self):
+    def mon2(self):
         L_BM2 = sc.scalar(110.99, unit="m")  # Position of Beam monitor 2
         return tof.Detector(distance=L_BM2, name="Monitor 2")  # type: ignore
 
     @property
-    def monitor3(self):
+    def mon3(self):
         L_BM3 = sc.scalar(163.2, unit="m")  # Tentative position of Beam monitor 3
         return tof.Detector(distance=L_BM3, name="Monitor 3")  # type: ignore
 
     @property
-    def monitor_sample(self):
+    def mon_sample(self):
         L_SAMPLE = sc.scalar(163.8, unit="m")  # Source to sample in m
         return tof.Detector(distance=L_SAMPLE, name="Sample")  # type: ignore
 
@@ -228,9 +229,10 @@ class Instrument(object):
         delta_lambda = h_over_mn / self.m_frequency / m_chopper_position.to(unit="m")
         return delta_lambda.to(unit="Å")
 
-    def calculate_bandwidth(
+    # TODO not needed
+    def _calculate_bandwidth(
         self,
-        source_time_range=(sc.scalar(0.2, unit="ms"), sc.scalar(3, unit="ms")),
+        source_time_range=(sc.scalar(0.0, unit="ms"), sc.scalar(4.0, unit="ms")),
         source_wavelength_range=(sc.scalar(0.25, unit="Å"), sc.scalar(7.5, unit="Å")),
     ):
         """Calculate the bandwidth determined by the Bandwidth choppers"""
@@ -264,7 +266,7 @@ class Instrument(object):
         return (wavelength_min, wavelength_max)
 
     def calculate_incoming_wavelength(self, bandwidth=None) -> sc.Variable:
-        bandwidth = self.calculate_bandwidth() if bandwidth is None else bandwidth
+        bandwidth = self._calculate_bandwidth() if bandwidth is None else bandwidth
         bw_min, bw_max = bandwidth
         del_lambda = self.calculate_delta_lambda()
         wavelength_list = [self.wavelength.value]
@@ -284,16 +286,44 @@ class Instrument(object):
         energy_array = sc.array(dims=["energy"], values=energy.values, unit=energy.unit)
         return energy_array
 
+    def _calculate_frame_at(
+        self, component_name: str, source_time_range, source_wavelength_range
+    ):
+        wavelength_min, wavelength_max = source_wavelength_range
+        time_min, time_max = source_time_range
+
+        component = self._validate_component(component_name)
+        frames = chopper_cascade.FrameSequence.from_source_pulse(
+            time_min=time_min,
+            time_max=time_max,
+            wavelength_min=wavelength_min,
+            wavelength_max=wavelength_max,
+        )
+        frames = frames.chop(self.chopper_cascade.values())
+        at_component = frames.propagate_to(component.distance)
+        frame = at_component[-1]  # ignore previous choppers
+        return frame
+
+    def calculate_bandwidth_at(
+        self,
+        component_name: str,
+        source_time_range=(sc.scalar(0.0, unit="ms"), sc.scalar(4.0, unit="ms")),
+        # source_wavelength_range=(sc.scalar(0.25, unit="Å"), sc.scalar(7.5, unit="Å")),
+        source_wavelength_range=(sc.scalar(0.0, unit="Å"), sc.scalar(4, unit="Å")),
+    ):
+        """Calculate the bandwidth at a given component"""
+
+        frame = self._calculate_frame_at(
+            component_name, source_time_range, source_wavelength_range
+        )
+        pass
+
     # TODO
     def calculate_toa_at(self, component_name: str, RRM=False, wavelength_range=None):
         """Calculate time of arrival at a given component in microseconds
         Use wavelength_range = (min,max) to limit the range of interest"""
-        try:
-            component = getattr(self, component_name)
-        except AttributeError:
-            print(f"{component_name} does not exist.")
-            return None
 
+        component = self._validate_component(component_name)
         distance = component.distance
         central_wavelength = self.wavelength
         wavelength_array = (

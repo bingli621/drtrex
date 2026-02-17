@@ -21,4 +21,4 @@ dependencies = [
 
 [tool.uv.sources]
 tof = { git = "https://github.com/scipp/tof.git", rev = "main" }
-plopp = { git = "https://github.com/scipp/plopp.git", rev = "hover-bug" }
+plopp = { git = "https://github.com/scipp/plopp.git", rev = "main" }
