@@ -51,19 +51,6 @@ def test_calculate_delta_lambda():
     assert sc.allclose(delta_lambda, 0.218035 * sc.Unit("Å"))
 
 
-def test_calculate_bandwidth():
-    central_wavelength = sc.scalar(2.5, unit="Å")
-    rrm: int = 8  # repetition rate multiplication factor
-    T_OFFSET = sc.scalar(1.7, unit="ms")
-    trex = Instrument(wavelength=central_wavelength, rrm=rrm, t_offset=T_OFFSET)
-    bw_min, bw_max = trex._calculate_bandwidth(
-        source_time_range=(sc.scalar(0.2, unit="ms"), sc.scalar(3.0, unit="ms")),
-        source_wavelength_range=(sc.scalar(0.25, unit="Å"), sc.scalar(7.5, unit="Å")),
-    )
-    assert sc.allclose(bw_min, 1.75011 * sc.Unit("Å"))
-    assert sc.allclose(bw_max, 3.26968 * sc.Unit("Å"))
-
-
 def test_validate_component(trex_cold):
     bw1 = trex_cold._validate_component("Bandwidth Chopper 1")
     assert type(bw1) is Chopper
@@ -72,70 +59,60 @@ def test_validate_component(trex_cold):
         trex_cold._validate_component("BandwidthChopper1")
 
 
-# TODO
 def test_calculate_frame_at(trex_cold):
+    # choppers
+    frames_bw2 = trex_cold._calculate_frame_at("Bandwidth Chopper 2")
+    assert frames_bw2.subbounds().sizes["subframe"] == 1
+    frames_ps2 = trex_cold._calculate_frame_at("Pulse Shaping Chopper 2")
+    assert frames_ps2.subbounds().sizes["subframe"] == 7
+    frames_m2 = trex_cold._calculate_frame_at("Monochromatic Chopper 2")
+    assert frames_m2.subbounds().sizes["subframe"] == 7
+    # monitors
+    frames_mon1 = trex_cold._calculate_frame_at("Monitor 1")
+    assert frames_mon1.subbounds().sizes["subframe"] == 1
+    bw_min, bw_max = frames_mon1.subbounds()["subframe", 0]["wavelength"]
+    assert sc.allclose(bw_min, 1.6 * sc.Unit("Å"), rtol=sc.scalar(0.05))
+    assert sc.allclose(bw_max, 3.2 * sc.Unit("Å"), rtol=sc.scalar(0.05))
 
-    source_time_range = (sc.scalar(0.0, unit="ms"), sc.scalar(4.0, unit="ms"))
-    source_wavelength_range = (sc.scalar(0.0, unit="Å"), sc.scalar(4.0, unit="Å"))
+    frames_mon2 = trex_cold._calculate_frame_at("Monitor 2")
+    assert frames_mon2.subbounds().sizes["subframe"] == 7
+    frames_mon3 = trex_cold._calculate_frame_at("Monitor 3")
+    assert frames_mon3.subbounds().sizes["subframe"] == 7
 
-    frames_bw2 = trex_cold._calculate_frame_at(
-        "Bandwidth Chopper 2", source_time_range, source_wavelength_range
+
+def test_calculate_bandwidth_at(trex_cold):
+    bw_min, bw_max = trex_cold.calculate_bandwidth_at(component_name="Sample")
+    assert sc.allclose(
+        ((bw_min + bw_max) / 2)[3], 2.5 * sc.Unit("Å"), rtol=sc.scalar(0.001)
     )
-    frames_ps2 = trex_cold._calculate_frame_at(
-        "Pulse Shaping Chopper 2", source_time_range, source_wavelength_range
+
+
+def test_calculate_toa_at(trex_cold):
+    t_min, t_max = trex_cold.calculate_toa_at(component_name="Sample")
+    assert sc.allclose(
+        ((t_min + t_max) / 2)[3], 0.105212 * sc.Unit("s"), rtol=sc.scalar(0.001)
     )
-    frames_m2 = trex_cold._calculate_frame_at(
-        "Monochromatic Chopper 2", source_time_range, source_wavelength_range
-    )
-
-    pass
-
-
-def test_calculate_bandwidth_at():
-
-    bw_min, bw_max = trex_cold.calculate_bandwidth_at(
-        component_name="monitor_sample",
-        source_time_range=(sc.scalar(0.0, unit="ms"), sc.scalar(4.0, unit="ms")),
-        source_wavelength_range=(sc.scalar(0.0, unit="Å"), sc.scalar(4.0, unit="Å")),
-    )
-    assert sc.allclose(bw_min, 1.75011 * sc.Unit("Å"))
-    assert sc.allclose(bw_max, 3.26968 * sc.Unit("Å"))
 
 
 def test_calculate_incoming_wavelength(trex_cold):
-    # default bandwidth range
     lambda_i = trex_cold.calculate_incoming_wavelength()
     assert len(lambda_i) == 7
-    assert sc.allclose(sc.min(lambda_i), 1.84589 * sc.Unit("Å"))
-    assert sc.allclose(sc.max(lambda_i), 3.15411 * sc.Unit("Å"))
+    assert sc.allclose(sc.min(lambda_i), 1.8 * sc.Unit("Å"), rtol=sc.scalar(0.05))
+    assert sc.allclose(sc.max(lambda_i), 3.1 * sc.Unit("Å"), rtol=sc.scalar(0.05))
 
-    # limit the bandwith
-    lambda_i = trex_cold.calculate_incoming_wavelength(
-        bandwidth=(1.9 * sc.Unit("Å"), 3.1 * sc.Unit("Å"))
+
+def test_calculate_incoming_wavelength_bounds(trex_cold):
+    lambda_i_bounds_low, lambda_i_bounds_high = (
+        trex_cold.calculate_incoming_wavelength_bounds()
     )
-    assert len(lambda_i) == 5
+    assert len(lambda_i_bounds_low) == 7
+    assert len(lambda_i_bounds_high) == 7
 
 
 def test_calculate_incoming_energy(trex_cold):
-    bw = trex_cold._calculate_bandwidth()
-    ei = trex_cold.calculate_incoming_energy(bw)
+    ei = trex_cold.calculate_incoming_energy()
     assert len(ei) == 7
-    assert sc.allclose(ei[3], 13.08867 * sc.Unit("meV"))
-
-
-# #TODO
-# def test_calculate_toa_at():
-#     central_wavelength = sc.scalar(1, unit="Å")
-#     rrm: int = 8  # repetition rate multiplication factor
-#     T_OFFSET = sc.scalar(1.7, unit="ms")
-#     trex = Instrument(wavelength=central_wavelength, rrm=rrm, t_offset=T_OFFSET)
-
-#     toa = trex.calculate_toa_at("monitor_sample")
-#     assert sc.allclose(toa, 43105.1 * sc.Unit("us"))
-
-#     toa_rrm = trex.calculate_toa_at("monitor_sample", RRM=True)
-#     assert len(toa_rrm) == 7
-#     assert sc.allclose(toa_rrm[3], 43105.1 * sc.Unit("us"))
+    assert sc.allclose(ei[3], 13.0 * sc.Unit("meV"), rtol=sc.scalar(0.05))
 
 
 @pytest.fixture

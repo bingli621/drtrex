@@ -1,8 +1,9 @@
-from typing import Literal
+from typing import Literal, Dict, Tuple
 import scipp as sc
 
 import tof
 from trex.chopper import ChopperParameters, Chopper
+from trex.source import Source
 import scipp.constants as const
 from scippneutron.tof import chopper_cascade
 
@@ -14,7 +15,7 @@ class Instrument(object):
         rrm: int,
         mode: Literal["High Flux", "High Resolution"] = "High Flux",
         t_offset=sc.scalar(0.0, unit="s"),
-        source=tof.Source(facility="ess", neutrons=1_000_000, pulses=1),  # type: ignore
+        source=Source(facility="ess", neutrons=1_000_000, pulses=1),  # type: ignore
     ) -> None:
         """Initialize instrument with central wavelength and repitition rate RRM"""
 
@@ -47,7 +48,8 @@ class Instrument(object):
 
     def _calculate_time_limit(self, distance):
         """Time needed for the slowest incomnig beam out of the RRM to
-        propagate to detector position."""
+        propagate to a given distance, e.g. detector position."""
+
         wavelength_max = self.wavelength + self.calculate_delta_lambda() * self.rrm / 2
         speed_min = tof.utils.wavelength_to_speed(wavelength_max)
         time_max = distance / speed_min
@@ -182,14 +184,12 @@ class Instrument(object):
         return Chopper(params)
 
     @property
-    def chopper_cascade(self):
+    def chopper_cascade(self) -> Dict:
         time_limit = self._calculate_time_limit(self.detector.distance)
-        return sc.DataGroup(
-            {
-                name: chopper.to_chopper_cascade(time_limit)[name]
-                for name, chopper in self.choppers.items()
-            }
-        )
+        return {
+            name: chopper.to_chopper_cascade(time_limit)
+            for name, chopper in self.choppers.items()
+        }
 
     @property
     def mon1(self):
@@ -219,7 +219,9 @@ class Instrument(object):
     @property
     def model(self):
         return tof.Model(
-            source=self.source, detectors=self.detectors, choppers=self.choppers
+            source=self.source,
+            detectors=self.detectors.values(),
+            choppers=self.choppers.values(),
         )  # type: ignore
 
     def calculate_delta_lambda(self) -> sc.Variable:
@@ -229,68 +231,9 @@ class Instrument(object):
         delta_lambda = h_over_mn / self.m_frequency / m_chopper_position.to(unit="m")
         return delta_lambda.to(unit="Å")
 
-    # TODO not needed
-    def _calculate_bandwidth(
-        self,
-        source_time_range=(sc.scalar(0.0, unit="ms"), sc.scalar(4.0, unit="ms")),
-        source_wavelength_range=(sc.scalar(0.25, unit="Å"), sc.scalar(7.5, unit="Å")),
-    ):
-        """Calculate the bandwidth determined by the Bandwidth choppers"""
-
-        wavelength_min, wavelength_max = source_wavelength_range
-        time_min, time_max = source_time_range
-
-        open_times, close_times = self.bw1.open_close_times()
-        open_bw1, close_bw1 = open_times[0], close_times[0]
-        open_times, close_times = self.bw2.open_close_times()
-        open_bw2, close_bw2 = open_times[0], close_times[0]
-        wavelength_max = min(
-            wavelength_max,
-            tof.utils.speed_to_wavelength(
-                self.bw1.distance / (close_bw1 - time_min.to(unit="us"))
-            ),
-            tof.utils.speed_to_wavelength(
-                self.bw2.distance / (close_bw2 - time_min.to(unit="us"))
-            ),
-        )
-        wavelength_min = max(
-            wavelength_min,
-            tof.utils.speed_to_wavelength(
-                self.bw1.distance / (open_bw1 - time_max.to(unit="us"))
-            ),
-            tof.utils.speed_to_wavelength(
-                self.bw2.distance / (open_bw2 - time_max.to(unit="us"))
-            ),
-        )
-
-        return (wavelength_min, wavelength_max)
-
-    def calculate_incoming_wavelength(self, bandwidth=None) -> sc.Variable:
-        bandwidth = self._calculate_bandwidth() if bandwidth is None else bandwidth
-        bw_min, bw_max = bandwidth
-        del_lambda = self.calculate_delta_lambda()
-        wavelength_list = [self.wavelength.value]
-        for i in range(1, int(self.rrm / 2 + 1)):
-            if (w_plus := self.wavelength + i * del_lambda) < bw_max:
-                wavelength_list.append(w_plus.value)
-            if (w_minus := self.wavelength - i * del_lambda) > bw_min:
-                wavelength_list.append(w_minus.value)
-        wavelength_list.sort()
-        return sc.array(dims=["wavelength"], values=wavelength_list, unit="Å")
-
-    def calculate_incoming_energy(self, bandwidth=None) -> sc.Variable:
-        wavelength_array = self.calculate_incoming_wavelength(bandwidth)
-
-        speed = tof.utils.wavelength_to_speed(wavelength_array)
-        energy = tof.utils.speed_to_energy(speed)
-        energy_array = sc.array(dims=["energy"], values=energy.values, unit=energy.unit)
-        return energy_array
-
-    def _calculate_frame_at(
-        self, component_name: str, source_time_range, source_wavelength_range
-    ):
-        wavelength_min, wavelength_max = source_wavelength_range
-        time_min, time_max = source_time_range
+    def _calculate_frame_at(self, component_name: str):
+        wavelength_min, wavelength_max = self.source.wavelength_range
+        time_min, time_max = self.source.time_range
 
         component = self._validate_component(component_name)
         frames = chopper_cascade.FrameSequence.from_source_pulse(
@@ -299,41 +242,49 @@ class Instrument(object):
             wavelength_min=wavelength_min,
             wavelength_max=wavelength_max,
         )
-        frames = frames.chop(self.chopper_cascade.values())
+        relevant_choppers = [
+            chopper
+            for chopper in self.chopper_cascade.values()
+            if chopper.distance <= component.distance
+        ]  # find all choppers before the given component
+
+        frames = frames.chop(relevant_choppers)
         at_component = frames.propagate_to(component.distance)
-        frame = at_component[-1]  # ignore previous choppers
+        frame = at_component[-1]
         return frame
 
     def calculate_bandwidth_at(
-        self,
-        component_name: str,
-        source_time_range=(sc.scalar(0.0, unit="ms"), sc.scalar(4.0, unit="ms")),
-        # source_wavelength_range=(sc.scalar(0.25, unit="Å"), sc.scalar(7.5, unit="Å")),
-        source_wavelength_range=(sc.scalar(0.0, unit="Å"), sc.scalar(4, unit="Å")),
-    ):
+        self, component_name: str
+    ) -> Tuple[sc.Variable, sc.Variable]:
         """Calculate the bandwidth at a given component"""
 
-        frame = self._calculate_frame_at(
-            component_name, source_time_range, source_wavelength_range
-        )
-        pass
+        frame = self._calculate_frame_at(component_name)
+        wavelength_bounds = frame.subbounds()["wavelength"]
+        wavelength_min = sc.sort(wavelength_bounds["bound", 0], key="subframe")
+        wavelength_max = sc.sort(wavelength_bounds["bound", 1], key="subframe")
+        return (wavelength_min, wavelength_max)
 
-    # TODO
-    def calculate_toa_at(self, component_name: str, RRM=False, wavelength_range=None):
-        """Calculate time of arrival at a given component in microseconds
-        Use wavelength_range = (min,max) to limit the range of interest"""
+    def calculate_toa_at(self, component_name: str) -> Tuple[sc.Variable, sc.Variable]:
+        """Calculate time of arrival at a given component"""
 
-        component = self._validate_component(component_name)
-        distance = component.distance
-        central_wavelength = self.wavelength
-        wavelength_array = (
-            self.calculate_incoming_wavelength(wavelength_range)
-            if RRM
-            else sc.array(
-                dims=["wavelength"], values=[central_wavelength.value], unit="Å"
-            )
-        )
+        frame = self._calculate_frame_at(component_name)
+        toa_bounds = frame.subbounds()["time"]
+        toa_min = sc.sort(toa_bounds["bound", 0], key="subframe")
+        toa_max = sc.sort(toa_bounds["bound", 1], key="subframe")
+        return (toa_min, toa_max)
+
+    def calculate_incoming_wavelength_bounds(self) -> Tuple[sc.Variable, sc.Variable]:
+        bw_min, bw_max = self.calculate_bandwidth_at("Sample")
+        return (bw_min, bw_max)
+
+    def calculate_incoming_wavelength(self) -> sc.Variable:
+        bw_min, bw_max = self.calculate_bandwidth_at("Sample")
+        return (bw_min + bw_max) / 2
+
+    def calculate_incoming_energy(self) -> sc.Variable:
+        wavelength_array = self.calculate_incoming_wavelength()
+
         speed = tof.utils.wavelength_to_speed(wavelength_array)
-        toa = (distance / speed).to(unit="us") + self.t_offset.to(unit="us")
-        toa_array = sc.array(dims=["toa"], values=toa.values, unit=toa.unit)
-        return toa_array
+        energy = tof.utils.speed_to_energy(speed)
+        energy_array = sc.array(dims=["energy"], values=energy.values, unit=energy.unit)
+        return energy_array

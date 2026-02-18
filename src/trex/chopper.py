@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, Optional, Dict
+from typing import Literal, Optional
 
 import tof
 import scipp as sc
@@ -88,10 +88,10 @@ class Chopper(tof.Chopper):  # type: ignore
     def open_close_times(self, *arg, **kwarg):
         return super().open_close_times(*arg, **kwarg)
 
-    def to_chopper_cascade(self, time_limit=sc.scalar(1, unit="s")) -> Dict:
+    def to_chopper_cascade(
+        self, time_limit=sc.scalar(1, unit="s")
+    ) -> chopper_cascade.Chopper:
         time_open, time_close = self.open_close_times(time_limit=time_limit, unit="s")
-        return {
-            self.name: chopper_cascade.Chopper(
-                distance=self.distance, time_open=time_open, time_close=time_close
-            )
-        }
+        return chopper_cascade.Chopper(
+            distance=self.distance, time_open=time_open, time_close=time_close
+        )

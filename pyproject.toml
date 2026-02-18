@@ -6,11 +6,12 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "h5py>=3.15.1",
+    "ipykernel>=7.2.0",
     "ipympl>=0.10.0",
     "matplotlib>=3.10.8",
     "numpy>=2.4.2",
     "pip>=26.0.1",
-    "plopp",
+    "plopp>=26.2.1",
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "scipp>=26.2.0",
@@ -21,4 +22,3 @@ dependencies = [
 
 [tool.uv.sources]
 tof = { git = "https://github.com/scipp/tof.git", rev = "main" }
-plopp = { git = "https://github.com/scipp/plopp.git", rev = "main" }

@@ -45,8 +45,8 @@ def test_open_close_times(bw1_params, ps1_params):
 
 def test_chopper_cascade(bw1_params):
     bw1 = Chopper(bw1_params)
-    bw1_dict = bw1.to_chopper_cascade()
-    assert type(bw1_dict["Bandwidth Chopper 1"]) is chopper_cascade.Chopper
+    bw1_chopper = bw1.to_chopper_cascade()
+    assert type(bw1_chopper) is chopper_cascade.Chopper
 
 
 @pytest.fixture
