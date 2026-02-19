@@ -87,11 +87,16 @@ def test_calculate_bandwidth_at(trex_cold):
     )
 
 
-def test_calculate_toa_at(trex_cold):
-    t_min, t_max = trex_cold.calculate_toa_at(component_name="Sample")
+def test_calculate_toa_range_at(trex_cold):
+    t_min, t_max = trex_cold.calculate_toa_range_at(component_name="Sample")
     assert sc.allclose(
         ((t_min + t_max) / 2)[3], 0.105212 * sc.Unit("s"), rtol=sc.scalar(0.001)
     )
+
+
+def test_calculate_toa_at(trex_cold):
+    toa = trex_cold.calculate_toa_at(component_name="Sample")
+    assert sc.allclose(toa[3], 0.105212 * sc.Unit("s"), rtol=sc.scalar(0.001))
 
 
 def test_calculate_incoming_wavelength(trex_cold):

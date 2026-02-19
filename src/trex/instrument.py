@@ -253,25 +253,38 @@ class Instrument(object):
         frame = at_component[-1]
         return frame
 
+    def _calculate_variable_range_at(
+        self,
+        component_name: str,
+        variable_name: str,
+    ) -> Tuple[sc.Variable, sc.Variable]:
+        """Calculate the range of a variable at a given component"""
+
+        frame = self._calculate_frame_at(component_name)
+        bounds = frame.subbounds().get(variable_name)
+        if bounds is None:
+            raise ValueError(f"{variable_name} is not a valid vairable name.")
+        var_bounds = bounds.rename_dims({"subframe": variable_name})
+        var_min = sc.sort(var_bounds["bound", 0], key=variable_name)
+        var_max = sc.sort(var_bounds["bound", 1], key=variable_name)
+        return (var_min, var_max)
+
     def calculate_bandwidth_at(
         self, component_name: str
     ) -> Tuple[sc.Variable, sc.Variable]:
         """Calculate the bandwidth at a given component"""
+        return self._calculate_variable_range_at(component_name, "wavelength")
 
-        frame = self._calculate_frame_at(component_name)
-        wavelength_bounds = frame.subbounds()["wavelength"]
-        wavelength_min = sc.sort(wavelength_bounds["bound", 0], key="subframe")
-        wavelength_max = sc.sort(wavelength_bounds["bound", 1], key="subframe")
-        return (wavelength_min, wavelength_max)
-
-    def calculate_toa_at(self, component_name: str) -> Tuple[sc.Variable, sc.Variable]:
+    def calculate_toa_range_at(
+        self, component_name: str
+    ) -> Tuple[sc.Variable, sc.Variable]:
         """Calculate time of arrival at a given component"""
+        return self._calculate_variable_range_at(component_name, "time")
 
-        frame = self._calculate_frame_at(component_name)
-        toa_bounds = frame.subbounds()["time"]
-        toa_min = sc.sort(toa_bounds["bound", 0], key="subframe")
-        toa_max = sc.sort(toa_bounds["bound", 1], key="subframe")
-        return (toa_min, toa_max)
+    def calculate_toa_at(self, component_name: str) -> sc.Variable:
+        """Calculate time of arrival at a given component"""
+        t_min, t_max = self._calculate_variable_range_at(component_name, "time")
+        return (t_min + t_max) / 2
 
     def calculate_incoming_wavelength_bounds(self) -> Tuple[sc.Variable, sc.Variable]:
         bw_min, bw_max = self.calculate_bandwidth_at("Sample")
