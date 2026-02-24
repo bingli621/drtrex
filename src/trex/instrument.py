@@ -1,6 +1,6 @@
 from typing import Literal, Dict, Tuple, Optional
 import scipp as sc
-
+import numpy as np
 import tof
 from trex.chopper import ChopperParameters, Chopper
 from trex.source import Source
@@ -315,7 +315,14 @@ class Instrument(object):
 
     def calculate_incoming_wavelength(self) -> sc.Variable:
         bw_min, bw_max = self.calculate_bandwidth_at("Sample")
-        return (bw_min + bw_max) / 2
+        bw = sc.empty_like(bw_min)
+        del_lambda = self.calculate_delta_lambda()
+        idx_0 = np.where(
+            ((bw_min - self.wavelength) * (bw_max - self.wavelength)).values < 0
+        )[0][0]
+        for i, idx in enumerate(range(-idx_0, -idx_0 + len(bw_min))):
+            bw[i] = idx * del_lambda
+        return bw + self.wavelength
 
     def calculate_incoming_energy(self) -> sc.Variable:
         wavelength_array = self.calculate_incoming_wavelength()

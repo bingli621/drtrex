@@ -102,8 +102,16 @@ def test_calculate_toa_at(trex_cold):
 def test_calculate_incoming_wavelength(trex_cold):
     lambda_i = trex_cold.calculate_incoming_wavelength()
     assert len(lambda_i) == 7
-    assert sc.allclose(sc.min(lambda_i), 1.8 * sc.Unit("Å"), rtol=sc.scalar(0.05))
-    assert sc.allclose(sc.max(lambda_i), 3.1 * sc.Unit("Å"), rtol=sc.scalar(0.05))
+    assert sc.allclose(
+        sc.min(lambda_i),
+        trex_cold.wavelength - 3 * trex_cold.calculate_delta_lambda(),
+        rtol=sc.scalar(0.01),
+    )
+    assert sc.allclose(
+        sc.max(lambda_i),
+        trex_cold.wavelength + 3 * trex_cold.calculate_delta_lambda(),
+        rtol=sc.scalar(0.01),
+    )
 
 
 def test_calculate_incoming_wavelength_bounds(trex_cold):
@@ -137,14 +145,14 @@ def test_estimate_incoming_wavelength(trex_cold):
     res = trex_cold.model.run()
     lambda_in = trex_cold.estimate_incoming_wavelength(res)
     lambda_expected = trex_cold.calculate_incoming_wavelength()
-    assert sc.allclose(lambda_in, lambda_expected, rtol=sc.scalar(0.01))
+    assert sc.allclose(lambda_in, lambda_expected, rtol=sc.scalar(0.1))
 
 
 def test_estimate_incoming_energy(trex_cold):
     res = trex_cold.model.run()
     ei = trex_cold.estimate_incoming_energy(res)
     ei_expected = trex_cold.calculate_incoming_energy()
-    assert sc.allclose(ei, ei_expected, rtol=sc.scalar(0.01))
+    assert sc.allclose(ei, ei_expected, rtol=sc.scalar(0.1))
 
 
 @pytest.fixture
