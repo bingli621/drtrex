@@ -88,7 +88,7 @@ def test_calculate_bandwidth_at(trex_cold):
 
 
 def test_calculate_toa_range_at(trex_cold):
-    t_min, t_max = trex_cold.calculate_toa_range_at(component_name="Sample")
+    t_min, t_max = trex_cold.calculate_toa_range_at(component_name="Sample", unit="s")
     assert sc.allclose(
         ((t_min + t_max) / 2)[3], 0.105212 * sc.Unit("s"), rtol=sc.scalar(0.001)
     )
@@ -96,7 +96,7 @@ def test_calculate_toa_range_at(trex_cold):
 
 def test_calculate_toa_at(trex_cold):
     toa = trex_cold.calculate_toa_at(component_name="Sample")
-    assert sc.allclose(toa[3], 0.105212 * sc.Unit("s"), rtol=sc.scalar(0.001))
+    assert sc.allclose(toa[3], 105212.0 * sc.Unit("us"), rtol=sc.scalar(0.001))
 
 
 def test_calculate_incoming_wavelength(trex_cold):
@@ -118,6 +118,33 @@ def test_calculate_incoming_energy(trex_cold):
     ei = trex_cold.calculate_incoming_energy()
     assert len(ei) == 7
     assert sc.allclose(ei[3], 13.0 * sc.Unit("meV"), rtol=sc.scalar(0.05))
+
+
+def test_estimate_toa_centroid_at(trex_cold):
+    res = trex_cold.model.run()
+    toa_m3 = trex_cold.estimate_toa_centroid_at("Monitor 3", model_result=res)
+    assert len(toa_m3) == 7
+    assert sc.allclose(toa_m3[0].data, 77842.5 * sc.Unit("us"))
+
+    toa_m1 = trex_cold.estimate_toa_centroid_at("Monitor 1", model_result=res)
+    assert len(toa_m1) == 1
+    assert sc.allclose(
+        toa_m1.data, trex_cold.calculate_toa_at("Monitor 1"), rtol=sc.scalar(0.1)
+    )
+
+
+def test_estimate_incoming_wavelength(trex_cold):
+    res = trex_cold.model.run()
+    lambda_in = trex_cold.estimate_incoming_wavelength(res)
+    lambda_expected = trex_cold.calculate_incoming_wavelength()
+    assert sc.allclose(lambda_in, lambda_expected, rtol=sc.scalar(0.01))
+
+
+def test_estimate_incoming_energy(trex_cold):
+    res = trex_cold.model.run()
+    ei = trex_cold.estimate_incoming_energy(res)
+    ei_expected = trex_cold.calculate_incoming_energy()
+    assert sc.allclose(ei, ei_expected, rtol=sc.scalar(0.01))
 
 
 @pytest.fixture

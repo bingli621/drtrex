@@ -1,4 +1,4 @@
-from typing import Literal, Dict, Tuple
+from typing import Literal, Dict, Tuple, Optional
 import scipp as sc
 
 import tof
@@ -6,6 +6,7 @@ from trex.chopper import ChopperParameters, Chopper
 from trex.source import Source
 import scipp.constants as const
 from scippneutron.tof import chopper_cascade
+from trex.utils import centers_to_edges
 
 
 class Instrument(object):
@@ -257,6 +258,8 @@ class Instrument(object):
         self,
         component_name: str,
         variable_name: str,
+        rename_dims_to: Optional[str] = None,
+        unit: Optional[str] = None,
     ) -> Tuple[sc.Variable, sc.Variable]:
         """Calculate the range of a variable at a given component"""
 
@@ -267,24 +270,44 @@ class Instrument(object):
         var_bounds = bounds.rename_dims({"subframe": variable_name})
         var_min = sc.sort(var_bounds["bound", 0], key=variable_name)
         var_max = sc.sort(var_bounds["bound", 1], key=variable_name)
+        if rename_dims_to is not None:
+            var_min = var_min.rename_dims({variable_name: rename_dims_to})
+            var_max = var_max.rename_dims({variable_name: rename_dims_to})
+        if unit is not None:
+            var_min = var_min.to(unit=unit)
+            var_max = var_max.to(unit=unit)
         return (var_min, var_max)
 
     def calculate_bandwidth_at(
-        self, component_name: str
+        self, component_name: str, unit="Å"
     ) -> Tuple[sc.Variable, sc.Variable]:
         """Calculate the bandwidth at a given component"""
-        return self._calculate_variable_range_at(component_name, "wavelength")
+        return self._calculate_variable_range_at(
+            component_name, "wavelength", unit=unit
+        )
 
     def calculate_toa_range_at(
-        self, component_name: str
+        self, component_name: str, unit="us"
     ) -> Tuple[sc.Variable, sc.Variable]:
         """Calculate time of arrival at a given component"""
-        return self._calculate_variable_range_at(component_name, "time")
+        return self._calculate_variable_range_at(
+            component_name, "time", rename_dims_to="toa", unit=unit
+        )
 
-    def calculate_toa_at(self, component_name: str) -> sc.Variable:
+    def calculate_toa_at(self, component_name: str, unit="us") -> sc.Variable:
         """Calculate time of arrival at a given component"""
-        t_min, t_max = self._calculate_variable_range_at(component_name, "time")
+        t_min, t_max = self._calculate_variable_range_at(
+            component_name, "time", rename_dims_to="toa", unit=unit
+        )
         return (t_min + t_max) / 2
+
+    def calculate_toa_bin_edges_at(self, component_name: str, unit="us") -> sc.Variable:
+        toa = self.calculate_toa_at(component_name)
+        if len(toa) == 1:
+            half_period = (0.5 / self.source.frequency).to(unit=toa.unit)
+            return sc.concat([toa - half_period, toa + half_period], dim="toa")
+        else:
+            return centers_to_edges(toa)
 
     def calculate_incoming_wavelength_bounds(self) -> Tuple[sc.Variable, sc.Variable]:
         bw_min, bw_max = self.calculate_bandwidth_at("Sample")
@@ -301,3 +324,35 @@ class Instrument(object):
         energy = tof.utils.speed_to_energy(speed)
         energy_array = sc.array(dims=["energy"], values=energy.values, unit=energy.unit)
         return energy_array
+
+    def estimate_toa_centroid_at(
+        self, component_name: str, model_result: tof.result.Result
+    ) -> sc.DataArray:
+
+        self._validate_component(component_name)
+        event = model_result[component_name].data.squeeze()
+        event_masked = event[~event.masks["blocked_by_others"]]
+
+        toa_edges = self.calculate_toa_bin_edges_at(component_name)
+        toa_binned = event_masked.bin(toa=toa_edges).drop_coords("distance")
+        toa_centers = (
+            toa_binned.bins.data * toa_binned.bins.coords["toa"]
+        ).bins.sum() / toa_binned.bins.sum()
+
+        return toa_centers
+
+    def estimate_incoming_wavelength(
+        self, model_result: tof.result.Result
+    ) -> sc.DataArray:
+        toa_m3 = self.estimate_toa_centroid_at("Monitor 3", model_result=model_result)
+        toa_det = self.estimate_toa_centroid_at("Detector", model_result=model_result)
+        time = toa_det.data - toa_m3.data
+        distance = self.detector.distance - self.mon3.distance
+        speed = distance / time
+        wavelength = tof.utils.speed_to_wavelength(speed)
+        return wavelength.rename_dims({"toa": "wavelength"})
+
+    def estimate_incoming_energy(self, model_result: tof.result.Result) -> sc.DataArray:
+        wavelength = self.estimate_incoming_wavelength(model_result)
+        speed = tof.utils.wavelength_to_speed(wavelength)
+        return tof.utils.speed_to_energy(speed).rename_dims({"wavelength": "energy"})
