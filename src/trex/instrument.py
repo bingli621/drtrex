@@ -1,12 +1,12 @@
-from typing import Literal, Dict, Tuple, Optional
+from typing import Literal, Dict, Tuple
 import scipp as sc
 import numpy as np
 import tof
-from trex.chopper import ChopperParameters, Chopper
+
 from trex.source import Source
+from trex.chopper import ChopperParameters, Chopper
+from trex.monitor import Monitor
 import scipp.constants as const
-from scippneutron.tof import chopper_cascade
-from trex.utils import centers_to_edges
 
 
 class Instrument(object):
@@ -33,7 +33,10 @@ class Instrument(object):
         choppers = [self.bw1, self.bw2, self.ps1, self.ps2, self.m1, self.m2]
         self.choppers = {chopper.name: chopper for chopper in choppers}
 
-        detectors = [self.mon1, self.mon2, self.mon3, self.mon_sample, self.detector]
+        monitors = [self.mon1, self.mon2, self.mon3, self.mon_sample, self.mon_beamstop]
+        self.monitors = {monitor.name: monitor for monitor in monitors}
+
+        detectors = [self.detector]
         self.detectors = {detector.name: detector for detector in detectors}
 
         # DEL_L = sc.scalar(0.02, unit="m")  # Effective flight path uncertainty
@@ -57,7 +60,9 @@ class Instrument(object):
         return time_max
 
     def _validate_component(self, component_name):
-        component = (self.choppers | self.detectors).get(component_name, None)
+        component = (self.choppers | self.monitors | self.detectors).get(
+            component_name, None
+        )
         if component is None:
             raise AttributeError(f"{component_name} does not exist.")
         return component
@@ -108,7 +113,7 @@ class Instrument(object):
             time_shift=self.t_offset,
             direction=tof.AntiClockwise,
         )
-        return Chopper(params)
+        return Chopper(params, self)
 
     @property
     def bw2(self):
@@ -122,7 +127,7 @@ class Instrument(object):
             time_shift=self.t_offset,
             direction=tof.AntiClockwise,
         )
-        return Chopper(params)
+        return Chopper(params, self)
 
     @property
     def ps1(self):
@@ -137,7 +142,7 @@ class Instrument(object):
             time_shift=self.t_offset,
             direction=tof.AntiClockwise,
         )
-        return Chopper(params)
+        return Chopper(params, self)
 
     @property
     def ps2(self):
@@ -152,7 +157,7 @@ class Instrument(object):
             time_shift=self.t_offset,
             direction=tof.Clockwise,
         )
-        return Chopper(params)
+        return Chopper(params, self)
 
     @property
     def m1(self):
@@ -167,7 +172,7 @@ class Instrument(object):
             time_shift=self.t_offset,
             direction=tof.AntiClockwise,
         )
-        return Chopper(params)
+        return Chopper(params, self)
 
     @property
     def m2(self):
@@ -182,11 +187,11 @@ class Instrument(object):
             time_shift=self.t_offset,
             direction=tof.Clockwise,
         )
-        return Chopper(params)
+        return Chopper(params, self)
 
     @property
     def chopper_cascade(self) -> Dict:
-        time_limit = self._calculate_time_limit(self.detector.distance)
+        time_limit = self._calculate_time_limit(self.mon_beamstop.distance)
         return {
             name: chopper.to_chopper_cascade(time_limit)
             for name, chopper in self.choppers.items()
@@ -195,22 +200,27 @@ class Instrument(object):
     @property
     def mon1(self):
         L_BM1 = sc.scalar(41.98786, unit="m")  # Position of Beam monitor 1
-        return tof.Detector(distance=L_BM1, name="Monitor 1")  # type: ignore
+        return Monitor(distance=L_BM1, name="Monitor 1", instrument=self)  # type: ignore
 
     @property
     def mon2(self):
         L_BM2 = sc.scalar(110.99, unit="m")  # Position of Beam monitor 2
-        return tof.Detector(distance=L_BM2, name="Monitor 2")  # type: ignore
+        return Monitor(distance=L_BM2, name="Monitor 2", instrument=self)  # type: ignore
 
     @property
     def mon3(self):
         L_BM3 = sc.scalar(163.2, unit="m")  # Tentative position of Beam monitor 3
-        return tof.Detector(distance=L_BM3, name="Monitor 3")  # type: ignore
+        return Monitor(distance=L_BM3, name="Monitor 3", instrument=self)  # type: ignore
 
     @property
     def mon_sample(self):
         L_SAMPLE = sc.scalar(163.8, unit="m")  # Source to sample in m
-        return tof.Detector(distance=L_SAMPLE, name="Sample")  # type: ignore
+        return Monitor(distance=L_SAMPLE, name="Sample", instrument=self)  # type: ignore
+
+    @property
+    def mon_beamstop(self):
+        L_DETECTOR = sc.scalar(166.8, unit="m")  # Source to sample in m
+        return Monitor(distance=L_DETECTOR, name="Beamstop", instrument=self)  # type: ignore
 
     @property
     def detector(self):
@@ -221,8 +231,8 @@ class Instrument(object):
     def model(self):
         return tof.Model(
             source=self.source,
-            detectors=self.detectors.values(),
             choppers=self.choppers.values(),
+            detectors=(self.monitors | self.detectors).values(),
         )  # type: ignore
 
     def calculate_delta_lambda(self) -> sc.Variable:
@@ -232,89 +242,12 @@ class Instrument(object):
         delta_lambda = h_over_mn / self.m_frequency / m_chopper_position.to(unit="m")
         return delta_lambda.to(unit="Å")
 
-    def _calculate_frame_at(self, component_name: str):
-        wavelength_min, wavelength_max = self.source.wavelength_range
-        time_min, time_max = self.source.time_range
-
-        component = self._validate_component(component_name)
-        frames = chopper_cascade.FrameSequence.from_source_pulse(
-            time_min=time_min,
-            time_max=time_max,
-            wavelength_min=wavelength_min,
-            wavelength_max=wavelength_max,
-        )
-        relevant_choppers = [
-            chopper
-            for chopper in self.chopper_cascade.values()
-            if chopper.distance <= component.distance
-        ]  # find all choppers before the given component
-
-        frames = frames.chop(relevant_choppers)
-        at_component = frames.propagate_to(component.distance)
-        frame = at_component[-1]
-        return frame
-
-    def _calculate_variable_range_at(
-        self,
-        component_name: str,
-        variable_name: str,
-        rename_dims_to: Optional[str] = None,
-        unit: Optional[str] = None,
-    ) -> Tuple[sc.Variable, sc.Variable]:
-        """Calculate the range of a variable at a given component"""
-
-        frame = self._calculate_frame_at(component_name)
-        bounds = frame.subbounds().get(variable_name)
-        if bounds is None:
-            raise ValueError(f"{variable_name} is not a valid vairable name.")
-        var_bounds = bounds.rename_dims({"subframe": variable_name})
-        var_min = sc.sort(var_bounds["bound", 0], key=variable_name)
-        var_max = sc.sort(var_bounds["bound", 1], key=variable_name)
-        if rename_dims_to is not None:
-            var_min = var_min.rename_dims({variable_name: rename_dims_to})
-            var_max = var_max.rename_dims({variable_name: rename_dims_to})
-        if unit is not None:
-            var_min = var_min.to(unit=unit)
-            var_max = var_max.to(unit=unit)
-        return (var_min, var_max)
-
-    def calculate_bandwidth_at(
-        self, component_name: str, unit="Å"
-    ) -> Tuple[sc.Variable, sc.Variable]:
-        """Calculate the bandwidth at a given component"""
-        return self._calculate_variable_range_at(
-            component_name, "wavelength", unit=unit
-        )
-
-    def calculate_toa_range_at(
-        self, component_name: str, unit="us"
-    ) -> Tuple[sc.Variable, sc.Variable]:
-        """Calculate time of arrival at a given component"""
-        return self._calculate_variable_range_at(
-            component_name, "time", rename_dims_to="toa", unit=unit
-        )
-
-    def calculate_toa_at(self, component_name: str, unit="us") -> sc.Variable:
-        """Calculate time of arrival at a given component"""
-        t_min, t_max = self._calculate_variable_range_at(
-            component_name, "time", rename_dims_to="toa", unit=unit
-        )
-        return (t_min + t_max) / 2
-
-    def calculate_toa_bin_edges_at(self, component_name: str, unit="us") -> sc.Variable:
-        toa = self.calculate_toa_at(component_name)
-        if len(toa) == 1:
-            half_period = (0.5 / self.source.frequency).to(unit=toa.unit)
-            return sc.concat([toa - half_period, toa + half_period], dim="toa")
-        else:
-            return centers_to_edges(toa)
-
     def calculate_incoming_wavelength_bounds(self) -> Tuple[sc.Variable, sc.Variable]:
-        bw_min, bw_max = self.calculate_bandwidth_at("Sample")
+        bw_min, bw_max = self.mon_sample.calculate_bandwidth()
         return (bw_min, bw_max)
 
     def calculate_incoming_wavelength(self) -> sc.Variable:
-        bw_min, bw_max = self.calculate_bandwidth_at("Sample")
+        bw_min, bw_max = self.mon_sample.calculate_bandwidth()
         bw = sc.empty_like(bw_min)
         del_lambda = self.calculate_delta_lambda()
         idx_0 = np.where(
@@ -332,29 +265,13 @@ class Instrument(object):
         energy_array = sc.array(dims=["energy"], values=energy.values, unit=energy.unit)
         return energy_array
 
-    def estimate_toa_centroid_at(
-        self, component_name: str, model_result: tof.result.Result
-    ) -> sc.DataArray:
-
-        self._validate_component(component_name)
-        event = model_result[component_name].data.squeeze()
-        event_masked = event[~event.masks["blocked_by_others"]]
-
-        toa_edges = self.calculate_toa_bin_edges_at(component_name)
-        toa_binned = event_masked.bin(toa=toa_edges).drop_coords("distance")
-        toa_centers = (
-            toa_binned.bins.data * toa_binned.bins.coords["toa"]
-        ).bins.sum() / toa_binned.bins.sum()
-
-        return toa_centers
-
     def estimate_incoming_wavelength(
         self, model_result: tof.result.Result
     ) -> sc.DataArray:
-        toa_m3 = self.estimate_toa_centroid_at("Monitor 3", model_result=model_result)
-        toa_det = self.estimate_toa_centroid_at("Detector", model_result=model_result)
+        toa_m3 = self.mon3.estimate_toa_centroid(model_result=model_result)
+        toa_det = self.mon_beamstop.estimate_toa_centroid(model_result=model_result)
         time = toa_det.data - toa_m3.data
-        distance = self.detector.distance - self.mon3.distance
+        distance = self.mon_beamstop.distance - self.mon3.distance
         speed = distance / time
         wavelength = tof.utils.speed_to_wavelength(speed)
         return wavelength.rename_dims({"toa": "wavelength"})

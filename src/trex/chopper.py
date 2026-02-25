@@ -1,10 +1,14 @@
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal, TYPE_CHECKING
 
 import tof
 import scipp as sc
 import scipp.constants as const
 from scippneutron.tof import chopper_cascade
+
+
+if TYPE_CHECKING:
+    from trex.instrument import Instrument
 
 
 @dataclass(frozen=True)
@@ -19,11 +23,13 @@ class ChopperParameters:
     widths: sc.Variable
     time_shift: sc.Variable
     direction: Literal[tof.AntiClockwise, tof.Clockwise]
-    mode: Optional[str] = None
+    mode: str | None = None
 
 
 class Chopper(tof.Chopper):  # type: ignore
-    def __init__(self, parameters: ChopperParameters):
+    def __init__(
+        self, parameters: ChopperParameters, instrument: "Instrument | None" = None
+    ):
 
         angle_offset = self.get_angle_offset(parameters.centers, parameters.mode)
         phase = self.get_phase(parameters, angle_offset)
@@ -37,9 +43,11 @@ class Chopper(tof.Chopper):  # type: ignore
             distance=parameters.distance,
             name=parameters.name,
         )
+        if instrument is not None:
+            self.instrument = instrument
 
     @staticmethod
-    def get_angle_offset(centers: sc.Variable, mode: Optional[str]):
+    def get_angle_offset(centers: sc.Variable, mode: str | None):
         """Get angle offset for the given mode, assuming the first set of slits are for
         the 'High Resolution' mode, and the secend sets are for the 'High Flux' mode.
 
