@@ -28,10 +28,7 @@ class Instrument(object):
 
         self.source = source
 
-        self.choppers = {
-            param.name: Chopper.from_parameters(parameters=param, instrument=self)
-            for param in chopper_params
-        }
+        self.choppers = {param.name: Chopper(param, self) for param in chopper_params}
 
         monitors = [Monitor(param, self) for param in monitor_params]
         # [self.mon1, self.mon2, self.mon3, self.mon_sample, self.mon_beamstop]
@@ -85,10 +82,9 @@ class Instrument(object):
 
     @property
     def model(self):
-        components = [
-            tof.Chopper.from_diskchopper(diskchopper, name=name)
-            for name, diskchopper in self.choppers.items()
-        ] + list((self.monitors | self.detectors).values())
+        components = list(self.choppers.values()) + list(
+            (self.monitors | self.detectors).values()
+        )
         # if sample is not None:
         #     components.append(sample)
         return tof.Model(source=self.source, components=components)  # type: ignore
