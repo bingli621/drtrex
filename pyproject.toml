@@ -21,4 +21,5 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-tof = { git = "https://github.com/scipp/tof.git", rev = "inelastic-sample" }
+# tof = { git = "https://github.com/scipp/tof.git", rev = "inelastic-sample" }
+tof = { git = "https://github.com/scipp/tof.git", rev = "main" }

@@ -1,5 +1,5 @@
 from typing import TYPE_CHECKING
-import tof
+
 import scipp as sc
 import scipp.constants as const
 from scippneutron.tof import chopper_cascade
@@ -10,29 +10,14 @@ if TYPE_CHECKING:
     from trex.params import ChopperParameters
 
 
-class Chopper(DiskChopper):
-    distance: sc.Variable
+class Chopper(DiskChopper):  # type: ignore
+    def __init__(self, parameters: "ChopperParameters", instrument: "Instrument"):
 
-    @classmethod
-    def from_parameters(
-        cls, parameters: "ChopperParameters", instrument: "Instrument"
-    ) -> "Chopper":
+        self.instrument = instrument
+        frequency = self._calculate_frequency(parameters)
+        slit_begin, slit_end = self._calculate_slit_openings(parameters)
 
-        frequency = cls._calculate_frequency(
-            parameters,
-            rrm=instrument.rrm,
-            source_frequency=instrument.source.frequency,
-        )
-        slit_begin, slit_end = cls._calculate_slit_openings(parameters)
-        phase = cls._calculate_phase(
-            parameters,
-            frequency=frequency,
-            mode=instrument.chopper_mode,
-            wavelength=instrument.wavelength,
-            t_offset=instrument.t_offset,
-        )
-
-        new_chopper = cls(
+        super().__init__(
             axle_position=parameters.axle_position,
             frequency=frequency,
             beam_position=parameters.beam_position,
@@ -40,45 +25,44 @@ class Chopper(DiskChopper):
             slit_begin=slit_begin,
             slit_end=slit_end,
             slit_height=parameters.slit_height,
-            phase=phase,
+            phase=self._calculate_phase(parameters, frequency),
         )
-        new_chopper.distance = parameters.axle_position.fields.z
-
-        return new_chopper
 
     # ------------------------------------------------------------------
     # Static helpers
     # ------------------------------------------------------------------
 
     @staticmethod
-    def get_angle_offset(
-        centers: sc.Variable, beam_position: sc.Variable, mode: str | None
-    ):
-        """Return angle offset from beam position for the given chopper mode.
+    def get_angle_offset(centers: sc.Variable, mode: str | None):
+        """Return angle offset for the given chopper mode.
 
         - First slit set  → High Resolution
         - Second slit set → High Flux
         - CCW is positive
+
+        Note:
+        scipp variables are mutable, use copy to avoid changing of centers
+        when operating on angle_offset
+
         """
         if mode not in (None, "High Resolution", "High Flux"):
             raise ValueError(
                 f"Unrecognized mode={mode}. Expected 'High Resolution' or 'High Flux'."
             )
-        slit_center = centers[1 if mode == "High Flux" and len(centers) > 1 else 0]
-        return slit_center - beam_position
 
-    @staticmethod
+        return centers[1 if mode == "High Flux" and len(centers) > 1 else 0].copy()
+
+    # ------------------------------------------------------------------
+    # Internal calculations
+    # ------------------------------------------------------------------
+
     def _calculate_phase(
-        parameters: "ChopperParameters",
-        frequency: sc.Variable,
-        mode: str,
-        wavelength: sc.Variable,
-        t_offset: sc.Variable,
+        self, parameters: "ChopperParameters", frequency
     ) -> sc.Variable:
         """Positive time shift/ angle offset delays the time"""
 
-        angle_offset = Chopper.get_angle_offset(
-            parameters.slit_center, parameters.beam_position, mode
+        angle_offset = self.get_angle_offset(
+            parameters.slit_center, self.instrument.chopper_mode
         )
 
         h = const.Planck  # Planck constant in J.s
@@ -86,23 +70,18 @@ class Chopper(DiskChopper):
         h_over_mn = (h / mn).to(unit="Å*m/s")  # 3956 Å*m/s
         two_pi = sc.scalar(360.0, unit="deg")
 
-        velocity = h_over_mn / wavelength.to(unit="Å")  # in m/s
-        time = parameters.axle_position.fields.z.to(unit="m") / velocity + t_offset.to(
-            unit="s"
-        )
+        velocity = h_over_mn / self.instrument.wavelength.to(unit="Å")  # in m/s
+        time = parameters.axle_position.fields.z.to(
+            unit="m"
+        ) / velocity + self.instrument.t_offset.to(unit="s")
         angle = time * frequency * two_pi
 
-        phase = (angle + angle_offset) % two_pi
-        if phase > sc.scalar(180.0, unit="deg"):
-            # subtract 2 pi to avoid an issue of missing openings at
-            # small time in ToF
-            phase -= two_pi
-        return phase
+        if frequency < sc.scalar(0, unit="Hz"):  # Clockwise:
+            angle_offset *= -1
 
-    @staticmethod
-    def _calculate_frequency(
-        parameters: "ChopperParameters", rrm: int, source_frequency: sc.Variable
-    ):
+        return (angle + angle_offset) % two_pi
+
+    def _calculate_frequency(self, parameters: "ChopperParameters"):
         """Get the frequencies of BW, PS and M-choppers.
         Note:
             fP = L_M/L_PS * fM /2, L_PS / L_M = 3/4 for P choppers have two sets of slits.
@@ -111,32 +90,28 @@ class Chopper(DiskChopper):
             multiples of 4.
             RRM should be smaller than 24.
         """
-
+        rrm = self.instrument.rrm
         if rrm % 4 != 0:
             raise ValueError(f"RRM = {rrm} needs to be multiples of 4.")
 
+        source_freq = self.instrument.source.frequency
         match name := parameters.name:
             case s if s.startswith("Bandwidth"):
-                freq = source_frequency
-            case "Pulse Shaping Chopper 1":
-                freq = source_frequency * rrm * 0.75 / 1
-            case "Pulse Shaping Chopper 2":
-                freq = source_frequency * rrm * 0.75 / 1 * (-1)
-            case "Monochromatic Chopper 1":
-                freq = source_frequency * rrm
-            case "Monochromatic Chopper 2":
-                freq = source_frequency * rrm * (-1)
+                freq = source_freq
+            case s if s.startswith("Pulse Shaping"):
+                freq = source_freq * rrm * 0.75 / 1
+            case s if s.startswith("Monochromatic"):
+                freq = source_freq * rrm
             case _:
                 raise ValueError(f"Unrecognized chopper name: {name}")
-        if sc.abs(freq) > parameters.frequency_max:
+        if freq > parameters.frequency_max:
             raise ValueError(
                 f"{name} frequency = {freq.value:.5g} Hz exceeds "
                 f"maximum {parameters.frequency_max.value:.5g} Hz"
             )
         return freq
 
-    @staticmethod
-    def _calculate_slit_openings(parameters: "ChopperParameters"):
+    def _calculate_slit_openings(self, parameters: "ChopperParameters"):
         slit_begin = parameters.slit_center - 0.5 * parameters.slit_width
         slit_end = parameters.slit_center + 0.5 * parameters.slit_width
         return (slit_begin, slit_end)
@@ -144,9 +119,9 @@ class Chopper(DiskChopper):
     # ------------------------------------------------------------------
     # Class methods
     # ------------------------------------------------------------------
+    # FIXME
     def open_close_times(self, *arg, **kwarg):
-        tof_chopper = tof.Chopper.from_diskchopper(self)
-        return tof_chopper.open_close_times(*arg, **kwarg)
+        return super().open_close_times(*arg, **kwarg)
 
     def to_chopper_cascade(
         self, time_limit=sc.scalar(1, unit="s")

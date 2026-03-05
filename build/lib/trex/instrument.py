@@ -28,12 +28,10 @@ class Instrument(object):
 
         self.source = source
 
-        self.choppers = {
-            param.name: Chopper.from_parameters(parameters=param, instrument=self)
-            for param in chopper_params
-        }
+        self.choppers = {param.name: Chopper(param, self) for param in chopper_params}
 
         monitors = [Monitor(param, self) for param in monitor_params]
+        # [self.mon1, self.mon2, self.mon3, self.mon_sample, self.mon_beamstop]
         self.monitors = {monitor.name: monitor for monitor in monitors}
 
         detectors = [self.detector]
@@ -84,21 +82,19 @@ class Instrument(object):
 
     @property
     def model(self):
-        choppers = [
-            tof.Chopper.from_diskchopper(diskchopper, name=name)
-            for name, diskchopper in self.choppers.items()
-        ]
-        detectors = list((self.monitors | self.detectors).values())
+        components = list(self.choppers.values()) + list(
+            (self.monitors | self.detectors).values()
+        )
         # if sample is not None:
         #     components.append(sample)
-        return tof.Model(source=self.source, choppers=choppers, detectors=detectors)  # type: ignore
+        return tof.Model(source=self.source, components=components)  # type: ignore
 
     def calculate_delta_lambda(self) -> sc.Variable:
         """Calculate step in wavelength selected by monochromatic choppers"""
         m1 = self.choppers["Monochromatic Chopper 1"]
         m2 = self.choppers["Monochromatic Chopper 2"]
         h_over_mn = (const.Planck / const.m_n).to(unit="Å*m/s")  # 3956 Å*m/s
-        m_chopper_position = (m1.distance + m2.distance) / 2
+        m_chopper_position = (m1.axle_position.fields.z + m2.axle_position.fields.z) / 2
         delta_lambda = h_over_mn / m1.frequency / m_chopper_position.to(unit="m")
         return delta_lambda.to(unit="Å")
 

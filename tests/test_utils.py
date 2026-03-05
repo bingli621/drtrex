@@ -13,10 +13,7 @@ def test_calculate_frame_at(trex):
     frames_m2 = calculate_frame_at("Monochromatic Chopper 2", trex)
     assert frames_m2.subbounds().sizes["subframe"] == 7
     # monitors
-    frames_mon1 = calculate_frame_at(
-        "Monitor 1",
-        trex,
-    )
+    frames_mon1 = calculate_frame_at("Monitor 1", trex)
     assert frames_mon1.subbounds().sizes["subframe"] == 1
     bw_min, bw_max = frames_mon1.subbounds()["subframe", 0]["wavelength"]
     assert sc.allclose(bw_min, 1.6 * sc.Unit("Å"), rtol=sc.scalar(0.05))
