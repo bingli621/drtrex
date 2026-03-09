@@ -18,6 +18,15 @@ class Source(tof.Source):  # type: ignore
             else wavelength_range
         )
 
+    def __str__(self):
+        t_min, t_max = self.time_range
+        w_min, w_max = self.wavelength_range
+        return (
+            super.__str__(self)
+            + f"\n  time range=({t_min.values:.3f}, {t_max.values:.3f}) [{t_min.unit}]"
+            + f"\n  wavelength range=({w_min.values:.3f}, {w_max.values:.3f}) [{w_min.unit}]"
+        )
+
     @staticmethod
     def calculate_range(data, number_of_sigma: float = 3.0):
         mean = sc.mean(data)
@@ -30,7 +39,7 @@ class Source(tof.Source):  # type: ignore
         data = self.data.coords["birth_time"]
         return self.calculate_range(data, number_of_sigma)
 
-    def calculate_wavelength_range(self, number_of_sigma=1.5):
+    def calculate_wavelength_range(self, number_of_sigma=2):
         data = self.data.coords["wavelength"]
         return self.calculate_range(data, number_of_sigma)
 

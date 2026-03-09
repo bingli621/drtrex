@@ -5,6 +5,7 @@ from typing import Optional, Tuple, TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
+    from tof.result import Result
     from trex.instrument import Instrument
 
 
@@ -15,6 +16,11 @@ def centers_to_edges(centers, dim=None):
     first = centers[0] - (mid[0] - centers[0])
     last = centers[-1] + (centers[-1] - mid[-1])
     return sc.concat([first, mid, last], dim=dim)
+
+
+# -----------------------------------------------------------------------
+# Frame propagation
+# -----------------------------------------------------------------------
 
 
 def calculate_frame_at(component_name: str, instrument: "Instrument") -> Frame:
@@ -68,6 +74,11 @@ def calculate_variable_range_at(
     return (var_min, var_max)
 
 
+# -----------------------------------------------------------------------
+# Gegnerating masks from the chopper acceptance diagram
+# -----------------------------------------------------------------------
+
+
 @dataclass
 class SubframeVortex:
     distance: sc.Variable
@@ -91,7 +102,7 @@ def acceptance_paths(
     return subframe_paths
 
 
-def _coord_centers(da: sc.DataArray, name: str) -> sc.Variable:
+def coord_centers(da: sc.DataArray, name: str) -> sc.Variable:
     """
     Return coordinate values suitable for point representation.
 
@@ -122,8 +133,8 @@ def get_points(
     Bin-edge coordinates are converted to midpoints.
     Units are stripped explicitly before conversion to NumPy.
     """
-    x_coord = _coord_centers(da, xcoord_name)
-    y_coord = _coord_centers(da, ycoord_name)
+    x_coord = coord_centers(da, xcoord_name)
+    y_coord = coord_centers(da, ycoord_name)
     # broadcast
     sizes = {**x_coord.sizes, **y_coord.sizes}
     x_coord = x_coord.broadcast(sizes=sizes).copy(deep=True)
@@ -137,3 +148,18 @@ def get_points(
         .transpose()
     )
     return xy_stack.values
+
+
+# -----------------------------------------------------------------------
+# Frame reconstruction
+# -----------------------------------------------------------------------
+
+
+def reconstruct_frame_at(
+    component_name: str,
+    model_result: "Result",
+    wavelength_lower_bound,
+    distance,
+    period,
+):
+    pass

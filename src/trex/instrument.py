@@ -13,6 +13,8 @@ from trex.utils import calculate_frame_at, acceptance_paths
 
 
 class Instrument(object):
+    """Class to model the instrument"""
+
     def __init__(
         self,
         wavelength,
@@ -29,6 +31,7 @@ class Instrument(object):
         self.t_offset = t_offset
 
         self.source = source
+        self.period = (1.0 / self.source.frequency).to(unit="us")
 
         self.choppers = {
             param.name: Chopper.from_parameters(parameters=param, instrument=self)
@@ -48,22 +51,9 @@ class Instrument(object):
             + f"Monochromatic chopper frequency = {self.choppers['Monochromatic Chopper 1'].frequency.value:3g} Hz"
         )
 
-    def _calculate_time_limit(self, distance):
-        """Time needed for the slowest incomnig beam out of the RRM to
-        propagate to a given distance, e.g. detector position."""
-
-        wavelength_max = self.wavelength + self.calculate_delta_lambda() * self.rrm / 2
-        speed_min = tof.utils.wavelength_to_speed(wavelength_max)
-        time_max = distance / speed_min
-        return time_max
-
-    def _validate_component(self, component_name):
-        component = (self.choppers | self.monitors | self.detectors).get(
-            component_name, None
-        )
-        if component is None:
-            raise AttributeError(f"{component_name} does not exist.")
-        return component
+    # -----------------------------------------------------------------------
+    # properties
+    # -----------------------------------------------------------------------
 
     @property
     def chopper_cascade(self) -> Dict:
@@ -90,6 +80,38 @@ class Instrument(object):
         # if sample is not None:
         #     components.append(sample)
         return tof.Model(source=self.source, choppers=choppers, detectors=detectors)  # type: ignore
+
+    # -----------------------------------------------------------------------
+    # internal helpers
+    # -----------------------------------------------------------------------
+
+    def _calculate_time_limit(self, distance):
+        """Time needed for the slowest incomnig beam out of the RRM to
+        propagate to a given distance, e.g. detector position."""
+
+        wavelength_max = self.wavelength + self.calculate_delta_lambda() * self.rrm / 2
+        speed_min = tof.utils.wavelength_to_speed(wavelength_max)
+        time_max = distance / speed_min
+        return time_max
+
+    def _validate_component(self, component_name):
+        component = (self.choppers | self.monitors | self.detectors).get(
+            component_name, None
+        )
+        if component is None:
+            raise AttributeError(f"{component_name} does not exist.")
+        return component
+
+    def _calculate_wavelength_lower_bound(self):
+        # give a margin of 0.1
+        return (
+            self.calculate_incoming_wavelength()[0]
+            - 0.5 * self.calculate_delta_lambda()
+        )
+
+    # -----------------------------------------------------------------------
+    # class methods: analytical calculation
+    # -----------------------------------------------------------------------
 
     def calculate_delta_lambda(self) -> sc.Variable:
         """Calculate step in wavelength selected by monochromatic choppers"""
@@ -123,6 +145,10 @@ class Instrument(object):
         energy_array = sc.array(dims=["energy"], values=energy.values, unit=energy.unit)
         return energy_array
 
+    # -----------------------------------------------------------------------
+    # class methods: from Monte-Carlo samplings in ToF
+    # -----------------------------------------------------------------------
+
     def estimate_incoming_wavelength(
         self, model_result: tof.result.Result
     ) -> sc.DataArray:
@@ -141,7 +167,39 @@ class Instrument(object):
         speed = tof.utils.wavelength_to_speed(wavelength)
         return tof.utils.speed_to_energy(speed).rename_dims({"wavelength": "energy"})
 
+    # -----------------------------------------------------------------------
+    # class methods
+    # -----------------------------------------------------------------------
+
     def mask_from_chopper(self, chopper_name: str = "Monochromatic Chopper 2"):
         frame = calculate_frame_at(chopper_name, self)
         mask_vortices = acceptance_paths(frame=frame)
         return mask_vortices
+
+    def wrap_frame(self, model_result: tof.result.Result):
+        """Mimic the wrapped frame in data"""
+        for component in self.monitors | self.detectors:
+            model_result[component].data.coords["toa"] %= self.period
+
+    def unwrap_frame(
+        self, model_result: tof.result.Result, wavelength_lower_bound=None
+    ):
+        wavelength_lower_bound = (
+            self._calculate_wavelength_lower_bound()
+            if wavelength_lower_bound is None
+            else wavelength_lower_bound
+        )
+
+        for component in self.monitors:
+
+            distance = self.monitors[component].distance
+            speed = tof.utils.wavelength_to_speed(wavelength_lower_bound)
+            toa = (distance / speed).to(unit="us") + self.t_offset.to(unit="us")
+            num_period = toa // self.period
+            remainder = toa % self.period
+
+            da = model_result[component].data.coords["toa"]["pulse", 0]
+            da = sc.where(da < remainder, da + self.period.to(unit="us"), da)
+            model_result[component].data.coords["toa"]["pulse", 0] = (
+                da + num_period * self.period.to(unit="us")
+            )

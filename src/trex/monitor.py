@@ -48,10 +48,10 @@ class Monitor(tof.Detector):  # type: ignore
         toa = self.calculate_toa()
         if len(toa) == 1:
             freq = self.instrument.source.frequency
-            half_period = (0.5 / freq).to(unit=toa.unit)
+            half_period = (0.5 / freq).to(unit=unit)
             return sc.concat([toa - half_period, toa + half_period], dim="toa")
         else:
-            return centers_to_edges(toa)
+            return centers_to_edges(toa).to(unit=unit)
 
     def estimate_toa_centroid(self, model_result: "tof.result.Result") -> sc.DataArray:
 
