@@ -167,39 +167,84 @@ class Instrument(object):
         speed = tof.utils.wavelength_to_speed(wavelength)
         return tof.utils.speed_to_energy(speed).rename_dims({"wavelength": "energy"})
 
+    # TODO
+    def estimate_toa_at(self, component_name: str, model_result: tof.result.Result):
+        toa_m3_min = (
+            self.monitors["Monitor 3"].estimate_toa_centroid(model_result).data[0]
+        )
+
+        wavelength_max = self.estimate_incoming_wavelength(model_result)[0]
+        speed_in_max = tof.utils.wavelength_to_speed(wavelength_max)
+
+        mon3_distance = self.monitors["Monitor at Sample"].distance
+        sample_distance = self.monitors["Monitor 3"].distance
+        mon3_to_sample = sample_distance - mon3_distance
+
+        toa_sample_min = toa_m3_min + (mon3_to_sample / speed_in_max).to(unit="us")
+
     # -----------------------------------------------------------------------
-    # class methods
+    # class methods: mask
     # -----------------------------------------------------------------------
 
-    def mask_from_chopper(self, chopper_name: str = "Monochromatic Chopper 2"):
-        frame = calculate_frame_at(chopper_name, self)
+    def mask_from_choppers(self, last_chopper_name: str = "Monochromatic Chopper 2"):
+        frame = calculate_frame_at(last_chopper_name, self)
         mask_vortices = acceptance_paths(frame=frame)
         return mask_vortices
 
+    # -----------------------------------------------------------------------
+    # class methods: wrap/unwrap frame
+    # -----------------------------------------------------------------------
+
     def wrap_frame(self, model_result: tof.result.Result):
         """Mimic the wrapped frame in data"""
-        for component in self.monitors | self.detectors:
-            model_result[component].data.coords["toa"] %= self.period
+        for component in (self.monitors | self.detectors).values():
+            component.wrap_frame(model_result)
+
+    # TODO
+    def unwrap_frame_detectors(self, model_result: tof.result.Result, ei_ef_ratio=0.0):
+        """ei_ef_ration is defined as ei/ef, this value should be between 0 and 1."""
+
+        toa_m3_min = (
+            self.monitors["Monitor 3"].estimate_toa_centroid(model_result).data[0]
+        )
+
+        wavelength_max = self.estimate_incoming_wavelength(model_result)[0]
+        speed_in_max = tof.utils.wavelength_to_speed(wavelength_max)
+        speed_out_max = speed_in_max / np.sqrt(ei_ef_ratio)
+        mon3_distance = self.monitors["Monitor at Sample"].distance
+        sample_distance = self.monitors["Monitor 3"].distance
+        mon3_to_sample = sample_distance - mon3_distance
+
+        period = self.period.to(unit="us")
+        for name, component in self.detectors.items():
+            det_distance = component.distance
+            sample_to_det = det_distance - sample_distance
+
+            toa_det_min = (
+                toa_m3_min
+                + (mon3_to_sample / speed_in_max).to(unit="us")
+                + (sample_to_det / speed_out_max).to(unit="us")
+            )
+            # Determine pulse wrapping
+            num_period = toa_det_min // period
+            remainder = toa_det_min % period
+            # Shift TOAs into correct pulse and apply absolute offset
+            data = model_result[name].data
+            toa = data.coords["toa"]["pulse", 0]
+            toa_shifted = sc.where(toa < remainder, toa + period, toa)
+            data.coords["toa"]["pulse", 0] = toa_shifted + num_period * period
 
     def unwrap_frame(
-        self, model_result: tof.result.Result, wavelength_lower_bound=None
+        self,
+        model_result: tof.result.Result,
+        wavelength_lower_bound=None,
+        ei_ef_ratio=0.0,
     ):
         wavelength_lower_bound = (
             self._calculate_wavelength_lower_bound()
             if wavelength_lower_bound is None
             else wavelength_lower_bound
         )
-
-        for component in self.monitors:
-
-            distance = self.monitors[component].distance
-            speed = tof.utils.wavelength_to_speed(wavelength_lower_bound)
-            toa = (distance / speed).to(unit="us") + self.t_offset.to(unit="us")
-            num_period = toa // self.period
-            remainder = toa % self.period
-
-            da = model_result[component].data.coords["toa"]["pulse", 0]
-            da = sc.where(da < remainder, da + self.period.to(unit="us"), da)
-            model_result[component].data.coords["toa"]["pulse", 0] = (
-                da + num_period * self.period.to(unit="us")
-            )
+        for component in self.monitors.values():
+            component.unwrap_frame(model_result, wavelength_lower_bound)
+        self.unwrap_frame_detectors(model_result, ei_ef_ratio)

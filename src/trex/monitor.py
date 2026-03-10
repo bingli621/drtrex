@@ -65,3 +65,22 @@ class Monitor(tof.Detector):  # type: ignore
         ).bins.sum() / toa_binned.bins.sum()
 
         return toa_centers
+
+    def wrap_frame(self, model_result: "tof.result.Result"):
+        model_result[self.name].data.coords["toa"] %= self.instrument.period
+
+    def unwrap_frame(self, model_result: "tof.result.Result", wavelength_lower_bound):
+        period = self.instrument.period.to(unit="us")
+        t_offset = self.instrument.t_offset.to(unit="us")
+        # Expected TOA from wavelength lower bound
+        distance = self.distance
+        speed = tof.utils.wavelength_to_speed(wavelength_lower_bound)
+        toa_estimated = (distance / speed).to(unit="us") + t_offset
+        # Determine pulse wrapping
+        num_period = toa_estimated // period
+        remainder = toa_estimated % period
+        # Shift TOAs into correct pulse and apply absolute offset
+        data = model_result[self.name].data
+        toa = data.coords["toa"]["pulse", 0]
+        toa_shifted = sc.where(toa < remainder, toa + period, toa)
+        data.coords["toa"]["pulse", 0] = toa_shifted + num_period * period

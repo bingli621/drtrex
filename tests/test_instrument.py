@@ -55,6 +55,23 @@ def test_estimate_incoming_energy(trex):
     assert sc.allclose(ei, ei_expected, rtol=sc.scalar(0.1))
 
 
+# TODO
+def test_estimate_toa_at():
+    pass
+
+
+def test_wrap_unwrap_frame(trex):
+    res = trex.model.run()
+    assert res["Monitor 3"].data.coords["toa"].max() > trex.period
+    assert res["Detector"].data.coords["toa"].max() > trex.period
+    trex.wrap_frame(res)
+    assert res["Monitor 3"].data.coords["toa"].max() <= trex.period
+    assert res["Detector"].data.coords["toa"].max() <= trex.period
+    trex.unwrap_frame(res)
+    assert res["Monitor 3"].data.coords["toa"].max() > trex.period
+    assert res["Detector"].data.coords["toa"].max() > trex.period
+
+
 @pytest.fixture
 def trex():
     central_wavelength = sc.scalar(2.5, unit="Å")

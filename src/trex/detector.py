@@ -1,8 +1,7 @@
 import tof
 import scipp as sc
-from trex.utils import centers_to_edges
 from typing import TYPE_CHECKING
-from trex.utils import calculate_variable_range_at
+
 
 if TYPE_CHECKING:
     from trex.instrument import Instrument
@@ -13,3 +12,9 @@ class Detector(tof.Detector):  # type: ignore
     def __init__(self, parameters: "DetectorParameters", instrument: "Instrument"):
         self.instrument = instrument
         super().__init__(name=parameters.name, distance=parameters.distance)
+
+    def wrap_frame(self, model_result: "tof.result.Result"):
+        model_result[self.name].data.coords["toa"] %= self.instrument.period
+
+    def unwrap_frame_detectors(self, model_result: tof.result.Result, ei_ef_ratio=0.0):
+        pass
