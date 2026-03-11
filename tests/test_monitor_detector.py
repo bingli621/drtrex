@@ -36,6 +36,32 @@ def test_estimate_toa_centroid(trex):
     )
 
 
+def test_wrap_unwrap_frame(trex):
+    res = trex.model.run()
+    assert res["Monitor 3"].data.coords["toa"].max() > trex.period
+    assert res["Detector"].data.coords["toa"].max() > trex.period
+
+    trex.monitors["Monitor 3"].wrap_frame(res)
+    assert res["Monitor 3"].data.coords["toa"].max() <= trex.period
+    trex.detectors["Detector"].wrap_frame(res)
+    assert res["Detector"].data.coords["toa"].max() <= trex.period
+
+    wavelength_lower_bound = trex._calculate_wavelength_lower_bound()
+    trex.monitors["Monitor 3"].unwrap_frame(res, wavelength_lower_bound)
+    assert res["Monitor 3"].data.coords["toa"].max() > trex.period
+    trex.detectors["Detector"].unwrap_frame(res, ei_ef_ratio=0.5)
+    assert res["Detector"].data.coords["toa"].max() > trex.period
+
+
+def test_toa_to_energy(trex):
+    res = trex.model.run()
+    det = trex.detectors["Detector"]
+    det.wrap_frame(res)
+    toa_bin_edges = det.unwrap_frame(res, ei_ef_ratio=0.2)
+    det.toa_to_energy(toa_bin_edges, res)
+    pass
+
+
 @pytest.fixture
 def trex():
     central_wavelength = sc.scalar(2.5, unit="Å")

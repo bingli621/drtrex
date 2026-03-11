@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 import scipp as sc
 from trex.instrument import Instrument
 
@@ -55,9 +56,14 @@ def test_estimate_incoming_energy(trex):
     assert sc.allclose(ei, ei_expected, rtol=sc.scalar(0.1))
 
 
-# TODO
-def test_estimate_toa_at():
-    pass
+def test_estimate_toa_at(trex):
+    res = trex.model.run()
+    toa_m3 = trex.monitors["Monitor 3"].estimate_toa_centroid(res)
+    toa = trex.estimate_toa_at("Monitor 3", res)
+    assert sc.allclose(toa, toa_m3.data)
+
+    toa_sample = trex.estimate_toa_at("Monitor at Sample", res)
+    assert np.all((toa_sample - toa).values)
 
 
 def test_wrap_unwrap_frame(trex):

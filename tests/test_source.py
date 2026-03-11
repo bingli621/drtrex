@@ -14,7 +14,7 @@ def test_time_wavelength_tange(trex):
 
 
 def test_apply_mask(trex):
-    mask = trex.mask_from_chopper("Monochromatic Chopper 2")
+    mask = trex.mask_from_choppers("Monochromatic Chopper 2")
 
     source = Source(facility="ess", neutrons=1_000_000)
     num = source.data.shape[1]

@@ -5,6 +5,7 @@ from typing import Tuple, TYPE_CHECKING
 from trex.utils import calculate_variable_range_at
 
 if TYPE_CHECKING:
+    from tof.result import Result
     from trex.instrument import Instrument
     from trex.params import MonitorParameters
 
@@ -53,7 +54,8 @@ class Monitor(tof.Detector):  # type: ignore
         else:
             return centers_to_edges(toa).to(unit=unit)
 
-    def estimate_toa_centroid(self, model_result: "tof.result.Result") -> sc.DataArray:
+    def estimate_toa_centroid(self, model_result: "Result") -> sc.DataArray:
+        """Returns scipp DataArry with TOA bin-edges"""
 
         event = model_result[self.name].data.squeeze()
         event_masked = event[~event.masks["blocked_by_others"]]
@@ -66,10 +68,10 @@ class Monitor(tof.Detector):  # type: ignore
 
         return toa_centers
 
-    def wrap_frame(self, model_result: "tof.result.Result"):
+    def wrap_frame(self, model_result: "Result"):
         model_result[self.name].data.coords["toa"] %= self.instrument.period
 
-    def unwrap_frame(self, model_result: "tof.result.Result", wavelength_lower_bound):
+    def unwrap_frame(self, model_result: "Result", wavelength_lower_bound):
         period = self.instrument.period.to(unit="us")
         t_offset = self.instrument.t_offset.to(unit="us")
         # Expected TOA from wavelength lower bound
