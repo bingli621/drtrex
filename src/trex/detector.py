@@ -1,7 +1,7 @@
 import numpy as np
 import tof
 import scipp as sc
-from typing import TYPE_CHECKING
+from typing import List, TYPE_CHECKING
 
 
 if TYPE_CHECKING:
@@ -48,7 +48,9 @@ class Detector(tof.Detector):  # type: ignore
 
         return toa_det_bin_edges
 
-    def toa_to_energy(self, toa_bin_edges, model_result: "Result"):
+    def toa_to_energy(
+        self, toa_bin_edges, model_result: "Result"
+    ) -> List[sc.DataArray]:
 
         instrument = self.instrument
         sample_det_distance = (
@@ -58,14 +60,23 @@ class Detector(tof.Detector):  # type: ignore
         toa_sample = instrument.estimate_toa_at("Monitor at Sample", model_result)
 
         data = model_result[self.name].data["pulse", 0]
-        data = sc.sort(data, key="toa")
+        data_sorted = sc.sort(data, key="toa")
+        data_list = []
         for i, ei_i in enumerate(energy_in):
-            data_sel = data["toa", toa_bin_edges[i] : toa_bin_edges[i + 1]]
+            data_sel = data_sorted["toa", toa_bin_edges[i] : toa_bin_edges[i + 1]]
             time = data_sel.coords["toa"] - toa_sample[i]
             speed = sample_det_distance / time
             ef = tof.utils.speed_to_energy(speed)
-            ei = sc.full(
-                value=ei_i.value, unit=ei_i.unit, sizes={"event": len(data_sel)}
-            )
-            data_sel.assign_coords({"ei": ei, "ef": ef, "en": ei - ef})
-            pass
+
+            data_en = data_sel.assign_coords({"ei": ei_i, "ef": ef, "en": ei_i - ef})
+            sizes = {"pulse": 1, "event": data_en.size}
+            data_en = data_en.broadcast(sizes=sizes)
+            for name, coord in data_en.coords.items():
+                if name in ("distance", "ei"):
+                    continue
+                data_en.coords[name] = coord.broadcast(sizes=sizes)
+            for name, mask in data_en.masks.items():
+                data_en.masks[name] = mask.broadcast(sizes=sizes)
+            data_list.append(data_en)
+
+        return data_list

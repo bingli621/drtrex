@@ -1,4 +1,4 @@
-from typing import Literal, Dict, Tuple
+from typing import Literal, Dict, Tuple, List
 import scipp as sc
 import numpy as np
 import tof
@@ -205,12 +205,13 @@ class Instrument(object):
         model_result: tof.result.Result,
         wavelength_lower_bound=None,
         ei_ef_ratio=0.0,
-    ):
+    ) -> List[sc.DataArray]:
         if wavelength_lower_bound is None:
             wavelength_lower_bound = self._calculate_wavelength_lower_bound()
 
         for monitor in self.monitors.values():
             monitor.unwrap_frame(model_result, wavelength_lower_bound)
-        for detector in self.detectors.values():
-            toa_bin_edges = detector.unwrap_frame(model_result, ei_ef_ratio)
-            detector.toa_to_energy(toa_bin_edges, model_result)
+        detector = self.detectors["Detector"]
+        toa_bin_edges = detector.unwrap_frame(model_result, ei_ef_ratio)
+        reduced_list = detector.toa_to_energy(toa_bin_edges, model_result)
+        return reduced_list
