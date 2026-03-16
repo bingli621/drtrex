@@ -185,30 +185,40 @@ class Instrument(object):
         self, model_result: tof.result.Result, ei_ef_ratio=0.0
     ) -> Dict[str, sc.DataArray]:
         wavelength = self.estimate_incoming_wavelength(model_result)
-        ei = self.estimate_ei(model_result)
+        # ei = self.estimate_ei(model_result)
         ki = 2 * const.pi / wavelength
         detector = self.detectors["Detector"]
         toa_bin_edges = detector.unwrap_frame(model_result, ei_ef_ratio)
         en_min, en_max = detector.energy_transfer_ranges(toa_bin_edges, model_result)
 
-        q = sc.linspace("momentum transfer", 0.0 * ki.unit, 2 * ki.max(), 200)
+        q = sc.linspace("momentum transfer", 0.0 * ki.unit, 2.5 * ki.max(), 200)
         prefactor = const.hbar**2 / 2 / const.m_n
+        ei = (prefactor * ki**2).to(unit="meV")
         upper_bound = (prefactor * q * (2 * ki - q)).to(unit="meV")
-        lower_bound = sc.where(upper_bound > en_max, en_max, upper_bound)
+        upper_bound = sc.where(upper_bound > en_max, en_max, upper_bound)
         lower_bound = (prefactor * q * (-2 * ki - q)).to(unit="meV")
         lower_bound = sc.where(lower_bound < en_min, en_min, lower_bound)
 
-        coord = {"momentum transfer": sc.concat([q, q], dim="momentum transfer")}
-        return {
-            f"Ei = {ei_i.value:.3g} (meV)": sc.DataArray(
-                data=sc.concat(
-                    [lower_bound["rrm", i], upper_bound["rrm", i]],
-                    dim="momentum transfer",
-                ),  # type: ignore
-                coords=coord,
+        qe_coverage = {}
+        for i, ei_i in enumerate(ei):
+            # mask q values if lower bound larger than upper bound
+            lower_bound_i = lower_bound["rrm", i]
+            upper_bound_i = upper_bound["rrm", i]
+            q_mask = lower_bound_i < upper_bound_i
+            lower_bound_masked = lower_bound_i[q_mask]
+            upper_bound_masked = upper_bound_i[q_mask]
+            coords = sc.concat(
+                [q[q_mask], q[q_mask]],
+                dim="momentum transfer",
             )
-            for i, ei_i in enumerate(ei)
-        }
+            data = sc.concat(
+                [lower_bound_masked, upper_bound_masked], dim="momentum transfer"
+            )
+            qe_coverage[f"Ei = {ei_i.value:.3g} (meV)"] = sc.DataArray(
+                data=data, coords={"momentum transfer": coords}
+            )
+
+        return qe_coverage
 
     # -----------------------------------------------------------------------
     # class methods: mask
