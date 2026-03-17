@@ -18,14 +18,16 @@ class Detector(tof.Detector):  # type: ignore
     def wrap_frame(self, model_result: "Result"):
         model_result[self.name].data.coords["toa"] %= self.instrument.period  # type: ignore
 
-    def unwrap_frame(self, model_result: "Result", ei_ef_ratio=0.0) -> sc.Variable:
+    def unwrap_frame(
+        self, model_result: "Result", ei_ef_ratio: float = 0.0
+    ) -> Tuple[sc.Variable, sc.Variable, sc.Variable]:
         """Unwrap frame and return TOA bin edges for conversion to energy"""
 
         instrument = self.instrument
         toa_sample = instrument.estimate_toa_at("Monitor at Sample", model_result)
 
-        wavelength = instrument.estimate_incoming_wavelength(model_result)
-        speed_in = tof.utils.wavelength_to_speed(wavelength)
+        ei = instrument.estimate_ei(model_result)
+        speed_in = tof.utils.energy_to_speed(ei)
         speed_out = speed_in / np.sqrt(ei_ef_ratio)
         sample_to_det_distance = (
             self.distance - instrument.monitors["Monitor at Sample"].distance
@@ -46,23 +48,26 @@ class Detector(tof.Detector):  # type: ignore
         toa_shifted = sc.where(toa < remainder, toa + period, toa)
         data.coords["toa"]["pulse", 0] = toa_shifted + num_period * period
 
-        return toa_edges
+        return (toa_edges, ei, toa_sample)
 
     def toa_to_energy(
-        self, toa_edges: sc.Variable, model_result: "Result"
+        self,
+        model_result: "Result",
+        toa_edges: sc.Variable,
+        ei: sc.Variable,
+        toa_sample: sc.Variable,
     ) -> List[sc.DataArray]:
 
         instrument = self.instrument
         sample_det_distance = (
             self.distance - instrument.monitors["Monitor at Sample"].distance
         )
-        energy_in = instrument.estimate_ei(model_result)
-        toa_sample = instrument.estimate_toa_at("Monitor at Sample", model_result)
-
         data = model_result[self.name].data["pulse", 0]  # type: ignore
+        # filter NaN in coords
+        data = data[~sc.isnan(data.coords["toa"])]
         data_sorted = sc.sort(data, key="toa")
         data_list = []
-        for i, ei_i in enumerate(energy_in):  # type: ignore
+        for i, ei_i in enumerate(ei):  # type: ignore
             data_sel = data_sorted["toa", toa_edges[i] : toa_edges[i + 1]]
             time = data_sel.coords["toa"] - toa_sample[i]
             speed = sample_det_distance / time

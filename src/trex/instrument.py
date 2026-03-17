@@ -41,6 +41,7 @@ class Instrument(object):
         self.detectors = {
             param.name: Detector(param, self) for param in detector_params
         }
+        self.sample = None
 
     def __str__(self) -> str:
         return (
@@ -77,9 +78,10 @@ class Instrument(object):
             for name, diskchopper in self.choppers.items()
         ]
         detectors = list((self.monitors | self.detectors).values())
-        # if sample is not None:
-        #     components.append(sample)
-        return tof.Model(source=self.source, choppers=choppers, detectors=detectors)  # type: ignore
+        components = choppers + detectors
+        if self.sample is not None:
+            components.append(self.sample)
+        return tof.Model(source=self.source, components=components)  # type: ignore
 
     # -----------------------------------------------------------------------
     # internal helpers
@@ -103,7 +105,6 @@ class Instrument(object):
         return component
 
     def _calculate_wavelength_lower_bound(self):
-        # give a margin of 0.1
         return (
             self.calculate_incoming_wavelength()[0]
             - 0.5 * self.calculate_delta_lambda()
@@ -150,7 +151,7 @@ class Instrument(object):
 
     def estimate_incoming_wavelength(
         self, model_result: tof.result.Result
-    ) -> sc.DataArray:
+    ) -> sc.Variable:
         """Estimate incomnig wavelength from a simulation using ToF."""
         mon3 = self.monitors["Monitor 3"]
         mon_beamstop = self.monitors["Beamstop Monitor"]
@@ -162,7 +163,7 @@ class Instrument(object):
         wavelength = tof.utils.speed_to_wavelength(speed)
         return wavelength
 
-    def estimate_ei(self, model_result: tof.result.Result) -> sc.DataArray:
+    def estimate_ei(self, model_result: tof.result.Result) -> sc.Variable:
         """Estimate incomnig energy Ei from a simulation using ToF."""
         wavelength = self.estimate_incoming_wavelength(model_result)
         speed = tof.utils.wavelength_to_speed(wavelength)
@@ -170,7 +171,7 @@ class Instrument(object):
 
     def estimate_toa_at(
         self, component_name: str, model_result: tof.result.Result
-    ) -> sc.DataArray:
+    ) -> sc.Variable:
         """Estimate TOA at a given component from a simulation using ToF."""
         m3 = self.monitors["Monitor 3"]
         toa_m3 = m3.estimate_toa_centroid(model_result).data
@@ -182,40 +183,42 @@ class Instrument(object):
         return toa_m3 + time
 
     def estimate_qe_coverage(
-        self, model_result: tof.result.Result, ei_ef_ratio=0.0
+        self,
+        model_result: tof.result.Result,
+        ei_ef_ratio: float = 0.0,
+        num_pts: int = 200,
     ) -> Dict[str, sc.DataArray]:
         wavelength = self.estimate_incoming_wavelength(model_result)
-        # ei = self.estimate_ei(model_result)
         ki = 2 * const.pi / wavelength
         detector = self.detectors["Detector"]
-        toa_bin_edges = detector.unwrap_frame(model_result, ei_ef_ratio)
+        toa_bin_edges, ei, _ = detector.unwrap_frame(model_result, ei_ef_ratio)
         en_min, en_max = detector.energy_transfer_ranges(toa_bin_edges, model_result)
 
-        q = sc.linspace("momentum transfer", 0.0 * ki.unit, 2.5 * ki.max(), 200)
+        q = sc.linspace("momentum transfer", 0.0 * ki.unit, 2.5 * ki.max(), num_pts)  # type: ignore
         prefactor = const.hbar**2 / 2 / const.m_n
-        ei = (prefactor * ki**2).to(unit="meV")
         upper_bound = (prefactor * q * (2 * ki - q)).to(unit="meV")
         upper_bound = sc.where(upper_bound > en_max, en_max, upper_bound)
         lower_bound = (prefactor * q * (-2 * ki - q)).to(unit="meV")
         lower_bound = sc.where(lower_bound < en_min, en_min, lower_bound)
 
         qe_coverage = {}
-        for i, ei_i in enumerate(ei):
+        for i, ei_i in enumerate(ei):  # type: ignore
             # mask q values if lower bound larger than upper bound
             lower_bound_i = lower_bound["rrm", i]
             upper_bound_i = upper_bound["rrm", i]
             q_mask = lower_bound_i < upper_bound_i
-            lower_bound_masked = lower_bound_i[q_mask]
-            upper_bound_masked = upper_bound_i[q_mask]
+            lower_bound_masked = lower_bound_i[q_mask]  # type: ignore
+            upper_bound_masked = upper_bound_i[q_mask]  # type: ignore
             coords = sc.concat(
-                [q[q_mask], q[q_mask]],
+                [q[q_mask], q[q_mask]],  # type: ignore
                 dim="momentum transfer",
             )
             data = sc.concat(
                 [lower_bound_masked, upper_bound_masked], dim="momentum transfer"
             )
             qe_coverage[f"Ei = {ei_i.value:.3g} (meV)"] = sc.DataArray(
-                data=data, coords={"momentum transfer": coords}
+                data=data,  # type: ignore
+                coords={"momentum transfer": coords},  # type: ignore
             )
 
         return qe_coverage
@@ -243,13 +246,23 @@ class Instrument(object):
         model_result: tof.result.Result,
         wavelength_lower_bound=None,
         ei_ef_ratio=0.0,
-    ) -> List[sc.DataArray]:
+    ) -> Tuple[sc.Variable, sc.Variable, sc.Variable]:
         if wavelength_lower_bound is None:
             wavelength_lower_bound = self._calculate_wavelength_lower_bound()
-
         for monitor in self.monitors.values():
             monitor.unwrap_frame(model_result, wavelength_lower_bound)
+
         detector = self.detectors["Detector"]
-        toa_bin_edges = detector.unwrap_frame(model_result, ei_ef_ratio)
-        reduced_list = detector.toa_to_energy(toa_bin_edges, model_result)
+        toa_edges, ei, toa_sample = detector.unwrap_frame(model_result, ei_ef_ratio)
+        return (toa_edges, ei, toa_sample)
+
+    def toa_to_energy(
+        self,
+        model_result: tof.result.Result,
+        toa_edges: sc.Variable,
+        ei: sc.Variable,
+        toa_sample: sc.Variable,
+    ) -> List[sc.DataArray]:
+        detector = self.detectors["Detector"]
+        reduced_list = detector.toa_to_energy(model_result, toa_edges, ei, toa_sample)
         return reduced_list

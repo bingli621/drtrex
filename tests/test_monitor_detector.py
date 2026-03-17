@@ -57,8 +57,8 @@ def test_toa_to_energy(trex):
     res = trex.model.run()
     det = trex.detectors["Detector"]
     det.wrap_frame(res)
-    toa_bin_edges = det.unwrap_frame(res, ei_ef_ratio=0.2)
-    det.toa_to_energy(toa_bin_edges, res)
+    toa_bin_edges, ei, toa_sample = det.unwrap_frame(res, ei_ef_ratio=0.2)
+    det.toa_to_energy(res, toa_bin_edges, ei, toa_sample)
 
 
 def test_energy_transfer_range(trex):
@@ -66,7 +66,7 @@ def test_energy_transfer_range(trex):
     ei = trex.estimate_ei(res)
     det = trex.detectors["Detector"]
     det.wrap_frame(res)
-    toa_bin_edges = det.unwrap_frame(res, ei_ef_ratio=0.2)
+    toa_bin_edges, ei, toa_sample = det.unwrap_frame(res, ei_ef_ratio=0.2)
     en_min, en_max = det.energy_transfer_ranges(toa_bin_edges, res)
     assert sc.all(en_max < ei)
 
