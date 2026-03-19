@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 import scipp as sc
 from trex.instrument import Instrument
+from trex.sample import Sample
 
 
 def test_calculate_delta_lambda():
@@ -82,6 +83,12 @@ def test_estimate_qe_coverage(trex):
     res = trex.model.run()
     bounds = trex.estimate_qe_coverage(res, ei_ef_ratio=0.2)
     assert len(bounds) == 7
+
+
+def test_run(trex):
+    sample = Sample(en={"uniform": (-40, 0)}, name="test sample")
+    res = trex.run(sample)
+    assert "test sample" in str(res)
 
 
 @pytest.fixture

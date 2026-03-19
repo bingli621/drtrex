@@ -1,15 +1,11 @@
-from typing import Literal, Dict, Tuple, List
+from typing import Literal, Dict, Tuple, List, Optional
 import scipp as sc
 import numpy as np
 import tof
-
-from trex.components.source import Source
-from trex.components.chopper import Chopper
-from trex.components.monitor import Monitor
-from trex.components.detector import Detector
 import scipp.constants as const
-from trex.params import chopper_params, monitor_params, detector_params
+from trex.components import Source, Chopper, Monitor, Detector
 from trex.components.utils import calculate_frame_at, acceptance_paths
+from trex.params import chopper_params, monitor_params, detector_params
 
 
 class Instrument(object):
@@ -17,7 +13,7 @@ class Instrument(object):
 
     def __init__(
         self,
-        wavelength,
+        wavelength: sc.Variable,
         rrm: int,
         mode: Literal["High Flux", "High Resolution"] = "High Flux",
         t_offset=sc.scalar(0.0, unit="s"),
@@ -33,15 +29,17 @@ class Instrument(object):
         self.source = source
         self.period = (1.0 / self.source.frequency).to(unit="us")
 
-        self.choppers = {
+        self.choppers: Dict[str, Chopper] = {
             param.name: Chopper.from_parameters(parameters=param, instrument=self)
             for param in chopper_params
         }
-        self.monitors = {param.name: Monitor(param, self) for param in monitor_params}
-        self.detectors = {
+        self.monitors: Dict[str, Monitor] = {
+            param.name: Monitor(param, self) for param in monitor_params
+        }
+        self.detectors: Dict[str, Detector] = {
             param.name: Detector(param, self) for param in detector_params
         }
-        self.sample = None
+        self._model = None
 
     def __str__(self) -> str:
         return (
@@ -55,6 +53,17 @@ class Instrument(object):
     # -----------------------------------------------------------------------
     # properties
     # -----------------------------------------------------------------------
+    @property
+    def model(self):
+        if self._model is None:
+            choppers = [
+                tof.Chopper.from_diskchopper(diskchopper, name=name)
+                for name, diskchopper in self.choppers.items()
+            ]
+            detectors = list((self.monitors | self.detectors).values())
+            components = choppers + detectors
+            self._model = tof.Model(source=self.source, components=components)  # type: ignore
+        return self._model
 
     @property
     def chopper_cascade(self) -> Dict:
@@ -66,22 +75,13 @@ class Instrument(object):
             for name, chopper in self.choppers.items()
         }
 
-    @property
-    def detector(self):
-        L_DETECTOR = sc.scalar(166.8, unit="m")  # Source to sample in m
-        return tof.Detector(distance=L_DETECTOR, name="Detector")  # type: ignore
-
-    @property
-    def model(self):
-        choppers = [
-            tof.Chopper.from_diskchopper(diskchopper, name=name)
-            for name, diskchopper in self.choppers.items()
-        ]
-        detectors = list((self.monitors | self.detectors).values())
-        components = choppers + detectors
-        if self.sample is not None:
-            components.append(self.sample)
-        return tof.Model(source=self.source, components=components)  # type: ignore
+    def run(self, sample: Optional[tof.InelasticSample] = None):  # type: ignore
+        if sample is not None:
+            try:
+                self.model.add(sample)
+            except KeyError:
+                self.model.components[sample.name] = sample
+        return self.model.run()
 
     # -----------------------------------------------------------------------
     # internal helpers
