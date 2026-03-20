@@ -4,11 +4,11 @@ import scipp as sc
 import scipp.constants as const
 from scippneutron.tof import chopper_cascade
 from scippneutron.chopper.disk_chopper import DiskChopper
-from trex.components.utils import calculate_frame_at
+from drtrex.components.utils import calculate_frame_at
 
 if TYPE_CHECKING:
-    from trex.instrument import Instrument
-    from trex.params import ChopperParameters
+    from drtrex.instrument import Instrument
+    from drtrex.params import ChopperParameters
 
 
 class Chopper(DiskChopper):

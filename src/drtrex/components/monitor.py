@@ -1,13 +1,13 @@
 import tof
 import scipp as sc
-from trex.components.utils import centers_to_edges
+from drtrex.components.utils import centers_to_edges
 from typing import Tuple, TYPE_CHECKING
-from trex.components.utils import calculate_variable_range_at
+from drtrex.components.utils import calculate_variable_range_at
 
 if TYPE_CHECKING:
     from tof.result import Result
-    from trex.instrument import Instrument
-    from trex.params import MonitorParameters
+    from drtrex.instrument import Instrument
+    from drtrex.params import MonitorParameters
 
 
 class Monitor(tof.Detector):  # type: ignore
@@ -83,7 +83,7 @@ class Monitor(tof.Detector):  # type: ignore
         num_period = toa_estimated // period
         remainder = toa_estimated % period
         # Shift TOAs into correct pulse and apply absolute offset
-        data = model_result[self.name].data
+        data = model_result[self.name].data  # type: ignore
         toa = data.coords["toa"]["pulse", 0]
         toa_shifted = sc.where(toa < remainder, toa + period, toa)
         data.coords["toa"]["pulse", 0] = toa_shifted + num_period * period

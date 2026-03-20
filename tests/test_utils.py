@@ -1,8 +1,8 @@
 import pytest
 import scipp as sc
 
-from trex.instrument import Instrument
-from trex.components.utils import calculate_frame_at, acceptance_paths
+from drtrex.instrument import Instrument
+from drtrex.components.utils import calculate_frame_at, acceptance_paths
 
 
 def test_calculate_frame_at(trex):

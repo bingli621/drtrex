@@ -1,7 +1,7 @@
 import pytest
 import scipp as sc
-from trex.instrument import Instrument
-from trex.components.source import Source
+from drtrex.instrument import Instrument
+from drtrex.components.source import Source
 
 
 def test_time_wavelength_tange(trex):

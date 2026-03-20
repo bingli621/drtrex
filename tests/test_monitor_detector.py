@@ -1,6 +1,6 @@
 import scipp as sc
 import pytest
-from trex.instrument import Instrument
+from drtrex.instrument import Instrument
 
 
 def test_calculate_bandwidth(trex):

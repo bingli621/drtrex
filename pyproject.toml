@@ -1,8 +1,13 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
 [project]
-name = "trex"
+name = "drtrex"
 version = "0.1.0"
 description = "Data reduction for T-Rex at ESS"
 readme = "README.md"
+authors = [{ name = "Bing Li", email = "bing.li@ess.eu" }]
 requires-python = ">=3.12"
 dependencies = [
     "h5py>=3.16.0",

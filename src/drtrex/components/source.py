@@ -2,7 +2,7 @@ import tof
 import scipp as sc
 from matplotlib.path import Path
 import numpy as np
-from trex.components.utils import SubframeVortex, get_points
+from drtrex.components.utils import SubframeVortex, get_points
 
 
 class Source(tof.Source):  # type: ignore

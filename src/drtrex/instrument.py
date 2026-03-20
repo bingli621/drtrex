@@ -3,9 +3,9 @@ import scipp as sc
 import numpy as np
 import tof
 import scipp.constants as const
-from trex.components import Source, Chopper, Monitor, Detector
-from trex.components.utils import calculate_frame_at, acceptance_paths
-from trex.params import chopper_params, monitor_params, detector_params
+from drtrex.components import Source, Chopper, Monitor, Detector
+from drtrex.components.utils import calculate_frame_at, acceptance_paths
+from drtrex.params import chopper_params, monitor_params, detector_params
 
 
 class Instrument(object):

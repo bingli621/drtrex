@@ -1,8 +1,8 @@
 import pytest
 import numpy as np
 import scipp as sc
-from trex.instrument import Instrument
-from trex.sample import Sample
+from drtrex.instrument import Instrument
+from drtrex.sample import Sample
 
 
 def test_calculate_delta_lambda():

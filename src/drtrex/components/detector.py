@@ -6,8 +6,8 @@ from typing import List, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tof.result import Result
-    from trex.instrument import Instrument
-    from trex.params import DetectorParameters
+    from drtrex.instrument import Instrument
+    from drtrex.params import DetectorParameters
 
 
 class Detector(tof.Detector):  # type: ignore

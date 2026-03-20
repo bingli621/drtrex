@@ -2,12 +2,12 @@
 build/
 dist/
 uv.lock
-src/trex/egg-info/*.*
+src/drtrex/egg-info/*.*
 
-src/trex.egg-info/dependency_links.txt
-src/trex.egg-info/PKG-INFO
-src/trex.egg-info/requires.txt
-src/trex.egg-info/SOURCES.txt
-src/trex.egg-info/top_level.txt
+src/drtrex.egg-info/dependency_links.txt
+src/drtrex.egg-info/PKG-INFO
+src/drtrex.egg-info/requires.txt
+src/drtrex.egg-info/SOURCES.txt
+src/drtrex.egg-info/top_level.txt
 jupyter/.DS_Store
 .DS_Store

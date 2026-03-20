@@ -5,7 +5,7 @@ from typing import Optional, Tuple, TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
-    from trex.instrument import Instrument
+    from drtrex.instrument import Instrument
 
 
 def centers_to_edges(centers, dim=None):
