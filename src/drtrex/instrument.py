@@ -240,9 +240,10 @@ class Instrument(object):
     def estimate_flux(self) -> sc.Variable:
         """Return the counts per sub-pulse"""
         mask = self.mask_from_choppers()
-        self.source.apply_mask(mask)
+        source = self.source
+        source.apply_mask(mask)
         wav_min, wav_max = self.calculate_incoming_wavelength_bounds()
-        wav_data = self.source.data.coords["wavelength"]
+        wav_data = source.data.coords["wavelength"]
         rrm = wav_min.size
         flux = sc.empty(dims=["rrm"], shape=[rrm], dtype="int64", unit=None)
         for i in range(rrm):

@@ -1,6 +1,7 @@
 import scipp as sc
 import pytest
 from drtrex.instrument import Instrument
+from drtrex.components.source import Source
 
 
 def test_calculate_bandwidth(trex):
@@ -24,7 +25,7 @@ def test_calculate_toa(trex):
 
 
 def test_estimate_toa_centroid(trex):
-    res = trex.model.run()
+    res = trex.run()
     toa_m3 = trex.monitors["Monitor 3"].estimate_toa_centroid(model_result=res)
     assert len(toa_m3) == 7
     assert sc.allclose(toa_m3[0].data, 77842.5 * sc.Unit("us"), rtol=sc.scalar(0.01))
@@ -37,7 +38,7 @@ def test_estimate_toa_centroid(trex):
 
 
 def test_wrap_unwrap_frame(trex):
-    res = trex.model.run()
+    res = trex.run()
     assert res["Monitor 3"].data.coords["toa"].max() > trex.period
     assert res["Detector"].data.coords["toa"].max() > trex.period
 
@@ -54,17 +55,15 @@ def test_wrap_unwrap_frame(trex):
 
 
 def test_toa_to_energy(trex):
-    res = trex.model.run()
+    res = trex.run()
     det = trex.detectors["Detector"]
     det.wrap_frame(res)
     toa_bin_edges, ei, toa_sample = det.unwrap_frame(res, ei_ef_ratio=0.2)
     det.toa_to_energy(res, toa_bin_edges, ei, toa_sample)
 
 
-# TODO check -nan in en_min and en_max
 def test_energy_transfer_range(trex):
-    res = trex.model.run()
-    ei = trex.estimate_ei(res)
+    res = trex.run()
     det = trex.detectors["Detector"]
     det.wrap_frame(res)
     toa_bin_edges, ei, toa_sample = det.unwrap_frame(res, ei_ef_ratio=0.2)
@@ -78,4 +77,5 @@ def trex():
     rrm: int = 8  # repetition rate multiplication factor
     T_OFFSET = sc.scalar(1.7, unit="ms")
     trex = Instrument(wavelength=central_wavelength, rrm=rrm, t_offset=T_OFFSET)
+    trex.source = Source(facility="ess", neutrons=1_000_000, pulses=1)
     return trex

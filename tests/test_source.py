@@ -29,4 +29,5 @@ def trex():
     central_wavelength = sc.scalar(1.0, unit="Å")
     rrm = 4
     trex = Instrument(wavelength=central_wavelength, rrm=rrm, t_offset=T_OFFSET)
+    trex.source = Source(facility="ess", neutrons=1_000_000, pulses=1)
     return trex

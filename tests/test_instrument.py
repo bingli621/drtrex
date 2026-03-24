@@ -44,21 +44,21 @@ def test_calculate_ei(trex):
 
 
 def test_estimate_incoming_wavelength(trex):
-    res = trex.model.run()
+    res = trex.run()
     lambda_in = trex.estimate_incoming_wavelength(res)
     lambda_expected = trex.calculate_incoming_wavelength()
     assert sc.allclose(lambda_in, lambda_expected, rtol=sc.scalar(0.1))
 
 
 def test_estimate_ei(trex):
-    res = trex.model.run()
+    res = trex.run()
     ei = trex.estimate_ei(res)
     ei_expected = trex.calculate_ei()
     assert sc.allclose(ei, ei_expected, rtol=sc.scalar(0.1))
 
 
 def test_estimate_toa_at(trex):
-    res = trex.model.run()
+    res = trex.run()
     toa_m3 = trex.monitors["Monitor 3"].estimate_toa_centroid(res)
     toa = trex.estimate_toa_at("Monitor 3", res)
     assert sc.allclose(toa, toa_m3.data)
@@ -68,7 +68,7 @@ def test_estimate_toa_at(trex):
 
 
 def test_wrap_unwrap_frame(trex):
-    res = trex.model.run()
+    res = trex.run()
     assert res["Monitor 3"].data.coords["toa"].max() > trex.period
     assert res["Detector"].data.coords["toa"].max() > trex.period
     trex.wrap_frame(res)
@@ -80,7 +80,7 @@ def test_wrap_unwrap_frame(trex):
 
 
 def test_estimate_qe_coverage(trex):
-    res = trex.model.run()
+    res = trex.run()
     bounds = trex.estimate_qe_coverage(res, ei_ef_ratio=0.2)
     assert len(bounds) == 7
 
