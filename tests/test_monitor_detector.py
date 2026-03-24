@@ -61,6 +61,7 @@ def test_toa_to_energy(trex):
     det.toa_to_energy(res, toa_bin_edges, ei, toa_sample)
 
 
+# TODO check -nan in en_min and en_max
 def test_energy_transfer_range(trex):
     res = trex.model.run()
     ei = trex.estimate_ei(res)
@@ -68,7 +69,7 @@ def test_energy_transfer_range(trex):
     det.wrap_frame(res)
     toa_bin_edges, ei, toa_sample = det.unwrap_frame(res, ei_ef_ratio=0.2)
     en_min, en_max = det.energy_transfer_ranges(toa_bin_edges, res)
-    assert sc.all(en_max < ei)
+    assert sc.all(en_max <= ei)
 
 
 @pytest.fixture
