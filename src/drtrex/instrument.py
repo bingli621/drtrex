@@ -20,12 +20,14 @@ class Instrument(object):
         rrm: int,
         mode: Literal["High Flux", "High Resolution"] = "High Flux",
         t_offset=sc.scalar(0.0, unit="s"),
+        ps_slowdown: int = 1,
         source=Source(facility="ess", neutrons=1_000_000, pulses=1),  # type: ignore
     ) -> None:
         """Initialize instrument with central wavelength and repitition rate RRM"""
 
         self.wavelength = wavelength
         self.rrm: int = rrm
+        self.ps_slowdown = ps_slowdown
         self.chopper_mode: str = mode
         self.t_offset = t_offset
 
@@ -84,7 +86,8 @@ class Instrument(object):
                 self.model.add(sample)
             except KeyError:
                 self.model.components[sample.name] = sample
-        return self.model.run()
+        res = self.model.run()
+        return res
 
     # -----------------------------------------------------------------------
     # internal helpers
@@ -124,6 +127,7 @@ class Instrument(object):
         h_over_mn = (const.Planck / const.m_n).to(unit="Å*m/s")  # 3956 Å*m/s
         m_chopper_position = (m1.distance + m2.distance) / 2
         delta_lambda = h_over_mn / m1.frequency / m_chopper_position.to(unit="m")
+        delta_lambda *= self.ps_slowdown
         return delta_lambda.to(unit="Å")
 
     def calculate_incoming_wavelength_bounds(self) -> Tuple[sc.Variable, sc.Variable]:

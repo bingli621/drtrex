@@ -24,6 +24,7 @@ class Chopper(DiskChopper):
         frequency = cls._calculate_frequency(
             parameters,
             rrm=instrument.rrm,
+            ps_slowdown=instrument.ps_slowdown,
             source_frequency=instrument.source.frequency,
         )
         slit_begin, slit_end = cls._calculate_slit_openings(parameters)
@@ -106,7 +107,10 @@ class Chopper(DiskChopper):
 
     @staticmethod
     def _calculate_frequency(
-        parameters: "ChopperParameters", rrm: int, source_frequency: sc.Variable
+        parameters: "ChopperParameters",
+        rrm: int,
+        source_frequency: sc.Variable,
+        ps_slowdown: int = 1,
     ):
         """Get the frequencies of BW, PS and M-choppers.
         Note:
@@ -124,9 +128,9 @@ class Chopper(DiskChopper):
             case s if s.startswith("Bandwidth"):
                 freq = source_frequency
             case "Pulse Shaping Chopper 1":
-                freq = source_frequency * rrm * 0.75 / 1
+                freq = source_frequency * rrm * 0.75 / ps_slowdown
             case "Pulse Shaping Chopper 2":
-                freq = source_frequency * rrm * 0.75 / 1 * (-1)
+                freq = source_frequency * rrm * 0.75 / ps_slowdown * (-1)
             case "Monochromatic Chopper 1":
                 freq = source_frequency * rrm
             case "Monochromatic Chopper 2":

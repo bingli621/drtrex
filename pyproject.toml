@@ -21,11 +21,9 @@ dependencies = [
     "scipp>=26.3.0",
     "scippneutron>=26.3.0",
     "scipy>=1.17.0",
-    "tof>=26.3.0",
+    #"tof>=26.3.0",
+    "tof @ git+https://github.com/bingli621/tof.git",
 ]
-
-[tool.uv.sources]
-# tof = { git = "https://github.com/scipp/tof.git", rev = "main" }
 
 [dependency-groups]
 dev = [
