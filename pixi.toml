@@ -1,0 +1,29 @@
+[workspace]
+authors = ["Bing Li"]
+channels = ["conda-forge"]
+name = "drtrex"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = "3.12.*"
+
+[pypi-dependencies]
+drtrex = { path = "./", editable = true }
+
+# ==================== Dev feature ====================
+
+[feature.dev.pypi-dependencies]
+# Matplotlib is buggy for later ipykernel
+ipykernel = "<7"
+jupyterlab = ">=4.4"
+
+
+# ==================== Environments ====================
+
+[environments]
+# Default: all packages (for full dev setup)
+default = { features = ["dev"], solve-group = "default" }
+

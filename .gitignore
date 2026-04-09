@@ -11,3 +11,6 @@ src/drtrex.egg-info/SOURCES.txt
 src/drtrex.egg-info/top_level.txt
 jupyter/.DS_Store
 .DS_Store
+# pixi environments
+.pixi/*
+!.pixi/config.toml
