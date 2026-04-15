@@ -1,7 +1,11 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "drtrex"
 version = "0.1.2"
-description = "Add your description here"
+description = "Data reduction for T-REX at ESS"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -10,6 +14,7 @@ dependencies = [
     "ipympl>=0.10.0",
     "matplotlib>=3.10.8",
     "numpy>=2.4.4",
+    "pip>=26.0.1",
     "plopp>=26.3.1",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
