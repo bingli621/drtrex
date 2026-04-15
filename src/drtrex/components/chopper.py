@@ -121,8 +121,8 @@ class Chopper(DiskChopper):
             RRM should be smaller than 24.
         """
 
-        if rrm % 4 != 0:
-            raise ValueError(f"RRM = {rrm} needs to be multiples of 4.")
+        if rrm % 2 != 0:
+            raise ValueError(f"RRM = {rrm} needs to be even.")
 
         match name := parameters.name:
             case s if s.startswith("Bandwidth"):

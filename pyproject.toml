@@ -1,32 +1,22 @@
-[build-system]
-requires = ["setuptools>=75", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "drtrex"
-version = "0.1.1"
-description = "Data reduction for T-Rex at ESS"
+version = "0.1.2"
+description = "Add your description here"
 readme = "README.md"
-authors = [{ name = "Bing Li", email = "bing.li@ess.eu" }]
 requires-python = ">=3.12"
 dependencies = [
     "h5py>=3.16.0",
-    "ipykernel<7.0.0",
+    "ipykernel<7",
     "ipympl>=0.10.0",
     "matplotlib>=3.10.8",
-    "numpy>=2.4.2",
-    "pip>=26.0.1",
+    "numpy>=2.4.4",
     "plopp>=26.3.1",
-    "pytest-cov>=7.0.0",
-    "scipp>=26.3.0",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "scipp>=26.3.1",
     "scippneutron>=26.3.0",
-    "scipy>=1.17.0",
-    #"tof>=26.3.0",
-    "tof @ git+https://github.com/bingli621/tof.git",
+    "tof",
 ]
 
-[dependency-groups]
-dev = [
-    "pytest>=9.0.2",
-]
-
+[tool.uv.sources]
+tof = { git = "https://github.com/bingli621/tof" }
