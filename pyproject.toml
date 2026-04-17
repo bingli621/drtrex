@@ -25,3 +25,4 @@ dependencies = [
 
 [tool.uv.sources]
 tof = { git = "https://github.com/bingli621/tof" }
+#tof = { git = "https://github.com/scipp/tof" }
