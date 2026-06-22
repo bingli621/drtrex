@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING
+import numpy as np
 import tof
 import scipp as sc
 import scipp.constants as const
@@ -24,7 +25,7 @@ class Chopper(DiskChopper):
         frequency = cls._calculate_frequency(
             parameters,
             rrm=instrument.rrm,
-            ps_slowdown=instrument.ps_slowdown,
+            chopper_slowdown=instrument.chopper_slowdown,
             source_frequency=instrument.source.frequency,
         )
         slit_begin, slit_end = cls._calculate_slit_openings(parameters)
@@ -110,7 +111,7 @@ class Chopper(DiskChopper):
         parameters: "ChopperParameters",
         rrm: int,
         source_frequency: sc.Variable,
-        ps_slowdown: int = 1,
+        chopper_slowdown: tuple[int, int, int, int] = (1, 1, 1, 1),
     ):
         """Get the frequencies of BW, PS and M-choppers.
         Note:
@@ -128,13 +129,29 @@ class Chopper(DiskChopper):
             case s if s.startswith("Bandwidth"):
                 freq = source_frequency
             case "Pulse Shaping Chopper 1":
-                freq = source_frequency * rrm * 0.75 / ps_slowdown
+                freq = source_frequency * rrm * 0.75 / chopper_slowdown[0]
+                if np.abs(freq.value) % 7 != 0:
+                    raise ValueError(
+                        f"Frequency of {name} needs to be multiples of 7 Hz."
+                    )
             case "Pulse Shaping Chopper 2":
-                freq = source_frequency * rrm * 0.75 / ps_slowdown * (-1)
+                freq = source_frequency * rrm * 0.75 / chopper_slowdown[1] * (-1)
+                if np.abs(freq.value) % 7 != 0:
+                    raise ValueError(
+                        f"Frequency of {name} needs to be multiples of 7 Hz."
+                    )
             case "Monochromatic Chopper 1":
-                freq = source_frequency * rrm
+                freq = source_frequency * rrm / chopper_slowdown[2]
+                if np.abs(freq.value) % 14 != 0:
+                    raise ValueError(
+                        f"Frequency of {name} needs to be multiples of 14 Hz."
+                    )
             case "Monochromatic Chopper 2":
-                freq = source_frequency * rrm * (-1)
+                freq = source_frequency * rrm / chopper_slowdown[3] * (-1)
+                if np.abs(freq.value) % 14 != 0:
+                    raise ValueError(
+                        f"Frequency of {name} needs to be multiples of 14 Hz."
+                    )
             case _:
                 raise ValueError(f"Unrecognized chopper name: {name}")
         if sc.abs(freq) > parameters.frequency_max:

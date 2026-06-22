@@ -60,19 +60,29 @@ def test_chopper_cascade(trex):
 
 
 def test_chopper_frequency(trex):
-    bw1_params, _, ps1_params, _, m1_params, _ = chopper_params
+    bw1_params, _, ps1_params, _, m1_params, m2_params = chopper_params
     f_bw = Chopper.from_parameters(bw1_params, trex)._calculate_frequency(
         bw1_params, rrm=trex.rrm, source_frequency=trex.source.frequency
     )
     f_ps = Chopper.from_parameters(ps1_params, trex)._calculate_frequency(
         ps1_params, rrm=trex.rrm, source_frequency=trex.source.frequency
     )
-    f_m = Chopper.from_parameters(m1_params, trex)._calculate_frequency(
-        m1_params, rrm=trex.rrm, source_frequency=trex.source.frequency
+    f_m1 = Chopper.from_parameters(m1_params, trex)._calculate_frequency(
+        m1_params,
+        rrm=trex.rrm,
+        source_frequency=trex.source.frequency,
+        chopper_slowdown=(1, 1, 1, 2),
+    )
+    f_m2 = Chopper.from_parameters(m2_params, trex)._calculate_frequency(
+        m2_params,
+        rrm=trex.rrm,
+        source_frequency=trex.source.frequency,
+        chopper_slowdown=(1, 1, 1, 2),
     )
     assert sc.allclose(f_bw, 14.0 * sc.Unit("Hz"))
-    assert sc.allclose(f_m, 14.0 * trex.rrm * sc.Unit("Hz"))
+    assert sc.allclose(f_m1, 14.0 * trex.rrm * sc.Unit("Hz"))
     assert sc.allclose(f_ps, 14.0 * trex.rrm * 3 / 4 * sc.Unit("Hz"))
+    assert sc.allclose(f_m2, -14.0 * trex.rrm / 2 * sc.Unit("Hz"))
 
 
 def test_chopper_frequency_and_phase():
