@@ -11,6 +11,14 @@ def test_calculate_bandwidth(trex):
     )
 
 
+def test_calculate_bandwidth_2_pulses(trex):
+    trex.source = Source(facility="ess", neutrons=100_000, pulses=2)
+    bw_min, bw_max = trex.monitors["Monitor at Sample"].calculate_bandwidth()
+    assert sc.allclose(
+        ((bw_min + bw_max) / 2)[3], 2.5 * sc.Unit("Å"), rtol=sc.scalar(0.001)
+    )
+
+
 def test_calculate_toa_range(trex):
     t_min, t_max = trex.monitors["Monitor at Sample"].calculate_toa_range(unit="s")
     assert len(t_min) == 7
@@ -78,4 +86,16 @@ def trex():
     T_OFFSET = sc.scalar(1.7, unit="ms")
     trex = Instrument(wavelength=central_wavelength, rrm=rrm, t_offset=T_OFFSET)
     trex.source = Source(facility="ess", neutrons=1_000_000, pulses=1)
+    return trex
+
+
+@pytest.fixture
+def trex2():
+    central_wavelength = sc.scalar(1.365, unit="Å")
+    rrm: int = 22  # repetition rate multiplication factor
+    T_OFFSET = sc.scalar(1.7, unit="ms")
+    trex = Instrument(wavelength=central_wavelength, rrm=rrm, t_offset=T_OFFSET)
+    trex.source = Source(
+        facility="ess", neutrons=1_000_000, pulses=2, optimize_for=trex.choppers
+    )
     return trex

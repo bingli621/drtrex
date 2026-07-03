@@ -122,7 +122,7 @@ def test_chopper_frequency_and_phase():
 def test_calculate_frame(trex):
     bw1 = trex.choppers["Bandwidth Chopper 1"]
     frame = bw1.calculate_frame()
-    assert len(frame.subframes) == 1
+    assert len(frame.subframes) == 2
 
     m2 = trex.choppers["Monochromatic Chopper 2"]
     frame = m2.calculate_frame()

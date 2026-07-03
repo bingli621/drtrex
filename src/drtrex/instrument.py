@@ -31,7 +31,7 @@ class Instrument(object):
         self.chopper_mode: str = mode
         self.t_offset = t_offset
 
-        self.source = source
+        self._source = source
         self.period = (1.0 / self.source.frequency).to(unit="us")
 
         self.choppers: Dict[str, Chopper] = {
@@ -60,6 +60,15 @@ class Instrument(object):
     # -----------------------------------------------------------------------
     # properties
     # -----------------------------------------------------------------------
+    @property
+    def source(self):
+        return self._source
+
+    @source.setter
+    def source(self, source: Source):
+        self._source = source
+        self.model.source = source
+
     @property
     def model(self):
         if self._model is None:

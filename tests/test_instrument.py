@@ -3,6 +3,7 @@ import numpy as np
 import scipp as sc
 from drtrex.instrument import Instrument
 from drtrex.sample import Sample
+from drtrex.components.source import Source
 
 
 def test_calculate_delta_lambda():
@@ -48,6 +49,11 @@ def test_estimate_incoming_wavelength(trex):
     lambda_in = trex.estimate_incoming_wavelength(res)
     lambda_expected = trex.calculate_incoming_wavelength()
     assert sc.allclose(lambda_in, lambda_expected, rtol=sc.scalar(0.1))
+
+    trex.source = Source(facility="ess", neutrons=100_000, pulses=2)
+    res2 = trex.run()
+    lambda_in2 = trex.estimate_incoming_wavelength(res2)
+    assert sc.allclose(lambda_in2, lambda_expected, rtol=sc.scalar(0.1))
 
 
 def test_estimate_ei(trex):

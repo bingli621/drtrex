@@ -18,6 +18,7 @@ class Detector(tof.Detector):  # type: ignore
     def wrap_frame(self, model_result: "Result"):
         model_result[self.name].data.coords["toa"] %= self.instrument.period  # type: ignore
 
+    # FIXME Nan issue
     def unwrap_frame(
         self, model_result: "Result", ei_ef_ratio: float = 0.0
     ) -> Tuple[sc.Variable, sc.Variable, sc.Variable]:
@@ -47,6 +48,9 @@ class Detector(tof.Detector):  # type: ignore
         toa = data.coords["toa"]["pulse", 0]
         toa_shifted = sc.where(toa < remainder, toa + period, toa)
         data.coords["toa"]["pulse", 0] = toa_shifted + num_period * period
+
+        if any(sc.isnan(toa_edges)):
+            raise ValueError("Nan in toa_edges!")
 
         return (toa_edges, ei, toa_sample)
 

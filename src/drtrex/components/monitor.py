@@ -36,7 +36,7 @@ class Monitor(tof.Detector):  # type: ignore
         )
 
     def calculate_toa(self, unit="us") -> sc.Variable:
-        """Calculate time of arrival at a given component"""
+        """Calculate time of arrival"""
         t_min, t_max = calculate_variable_range_at(
             component_name=self.name,
             variable_name="time",
@@ -56,16 +56,17 @@ class Monitor(tof.Detector):  # type: ignore
             return centers_to_edges(toa).to(unit=unit)
 
     def estimate_toa_centroid(self, model_result: "Result") -> sc.DataArray:
-        """Returns scipp DataArry with TOA bin-edges"""
+        """Returns scipp DataArray with TOA bin-edges"""
 
         event = model_result[self.name].data["pulse", 0]  # type: ignore
         event_masked = event[~event.masks["blocked_by_others"]]
 
         toa_edges = self.calculate_toa_bin_edges()
         toa_binned = event_masked.bin(toa=toa_edges).drop_coords("distance")
-        toa_centers = (
-            toa_binned.bins.data * toa_binned.bins.coords["toa"]
-        ).bins.sum() / toa_binned.bins.sum()
+
+        weights = toa_binned.bins.sum()
+        weighted_toa = (toa_binned.bins.data * toa_binned.bins.coords["toa"]).bins.sum()
+        toa_centers = weighted_toa / weights
 
         return toa_centers.rename_dims({"toa": "rrm"})
 

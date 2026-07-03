@@ -28,18 +28,20 @@ class Source(tof.Source):  # type: ignore
         )
 
     @staticmethod
-    def calculate_range(data, number_of_sigma: float = 3.0):
+    def calculate_range(data, number_of_sigma: float = 5.0):
         mean = sc.mean(data)
         std = sc.std(data, ddof=0)
         min_value = max(data.min(), mean - number_of_sigma * std)
         max_value = mean + number_of_sigma * std
         return (min_value, max_value)
 
-    def calculate_time_range(self, number_of_sigma=3.0):
-        data = self.data.coords["birth_time"]
+    def calculate_time_range(self, number_of_sigma=5.0):
+        # Take only the first pulse
+        # data = self.data.coords["birth_time"]
+        data = self.data["pulse", 0].coords["birth_time"]
         return self.calculate_range(data, number_of_sigma)
 
-    def calculate_wavelength_range(self, number_of_sigma=2):
+    def calculate_wavelength_range(self, number_of_sigma=5.0):
         data = self.data.coords["wavelength"]
         return self.calculate_range(data, number_of_sigma)
 
