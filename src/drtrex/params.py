@@ -61,6 +61,26 @@ ps2 = ChopperParameters(  # CW
     frequency_max=sc.scalar(252, unit="Hz"),
 )
 
+# ps3 = ChopperParameters(  # CW
+#     name="Pulse Shaping Chopper 3",
+#     beam_position=sc.scalar(180.0, unit="deg"),
+#     axle_position=sc.vector((0, 0.305, 108.15), unit="m"),
+#     slit_center=sc.array(dims=["cutouts"], values=(0, -55, -180, -235), unit="deg"),
+#     slit_width=sc.array(dims=["cutouts"], values=(20, 35, 20, 35), unit="deg"),
+#     slit_height=sc.scalar(0.095, unit="m"),
+#     frequency_max=sc.scalar(252, unit="Hz"),
+# )
+
+ps3 = ChopperParameters(  # CW
+    name="Pulse Shaping Chopper 3",
+    beam_position=sc.scalar(180.0, unit="deg"),
+    axle_position=sc.vector((0, 0.305, 108.15), unit="m"),
+    slit_center=sc.array(dims=["cutouts"], values=(0, -55, -180, -235), unit="deg"),
+    slit_width=sc.array(dims=["cutouts"], values=(20, 35, 20, 35), unit="deg"),
+    slit_height=sc.scalar(0.095, unit="m"),
+    frequency_max=sc.scalar(252, unit="Hz"),
+)
+
 m1 = ChopperParameters(  # CCW
     name="Monochromatic Chopper 1",
     beam_position=sc.scalar(180.0, unit="deg"),
@@ -80,7 +100,7 @@ m2 = ChopperParameters(  # CW
     frequency_max=sc.scalar(336, unit="Hz"),
 )
 
-chopper_params = [bw1, bw2, ps1, ps2, m1, m2]
+chopper_params = [bw1, bw2, ps1, ps2, ps3, m1, m2]
 
 # ------------------------------------------------------------------
 # Monitors

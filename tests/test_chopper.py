@@ -14,7 +14,7 @@ def test_create_bw_chopper(trex):
 
 
 def test_angle_offset(trex):
-    _, _, ps1_params, ps2_params, _, _ = chopper_params
+    _, _, ps1_params, ps2_params, *_ = chopper_params
 
     angle_offset = Chopper.get_angle_offset(
         ps1_params.slit_center, ps1_params.beam_position, trex.chopper_mode
@@ -60,7 +60,7 @@ def test_chopper_cascade(trex):
 
 
 def test_chopper_frequency(trex):
-    bw1_params, _, ps1_params, _, m1_params, m2_params = chopper_params
+    bw1_params, _, ps1_params, *_, m1_params, m2_params = chopper_params
     f_bw = Chopper.from_parameters(bw1_params, trex)._calculate_frequency(
         bw1_params, rrm=trex.rrm, source_frequency=trex.source.frequency
     )
