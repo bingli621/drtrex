@@ -20,7 +20,7 @@ class Instrument(object):
         rrm: int,
         mode: Literal["High Flux", "High Resolution"] = "High Flux",
         t_offset=sc.scalar(0.0, unit="s"),
-        chopper_slowdown: tuple[int, int, int, int] = (1, 1, 1, 1),
+        chopper_slowdown: tuple | None = None,
         source=Source(facility="ess", neutrons=1_000_000, pulses=1),  # type: ignore
     ) -> None:
         """Initialize instrument with central wavelength and repitition rate RRM"""
@@ -47,15 +47,23 @@ class Instrument(object):
         self._model = None
 
     def __str__(self) -> str:
-        return (
+        trex_str = (
             f"T-Rex running in {self.chopper_mode} mode, "
             + f"with cententral wavelength = {self.wavelength.value:.2f} Å, "
             + f"RRM = {self.rrm}.\n"
-            + f"Pulse shaping choppers frequency = {self.choppers['Pulse Shaping Chopper 1'].frequency.value:3g}/"
-            + f"{self.choppers['Pulse Shaping Chopper 2'].frequency.value:3g} Hz, "
-            + f"Monochromatic choppers frequency = {self.choppers['Monochromatic Chopper 1'].frequency.value:3g}/"
-            + f"{self.choppers['Monochromatic Chopper 2'].frequency.value:3g} Hz"
         )
+        ps_freq = []
+        m_freq = []
+        for name, chopper in self.choppers.items():
+            freq = chopper.frequency.value
+            if name.startswith("Pulse Shaping"):
+                ps_freq.append(f"{freq:3g}")
+            elif name.startswith("Monochromatic"):
+                m_freq.append(f"{freq:3g}")
+        ps_str = "Pulse shaping choppers frequency = " + "/".join(ps_freq) + " Hz,"
+        m_str = " Monochromatic choppers frequency = " + "/".join(m_freq) + " Hz"
+
+        return trex_str + ps_str + m_str
 
     # -----------------------------------------------------------------------
     # properties
@@ -133,13 +141,27 @@ class Instrument(object):
 
     def calculate_delta_lambda(self) -> sc.Variable:
         """Calculate step in wavelength selected by monochromatic choppers"""
-        m1 = self.choppers["Monochromatic Chopper 1"]
-        m2 = self.choppers["Monochromatic Chopper 2"]
+
+        m_choppers = []
+        for name, chopper in self.choppers.items():
+            if name.startswith("Monochromatic"):
+                m_choppers.append(chopper)
+
         h_over_mn = (const.Planck / const.m_n).to(unit="Å*m/s")  # 3956 Å*m/s
-        m_chopper_position = (m1.distance + m2.distance) / 2
-        delta_lambda = h_over_mn / m1.frequency / m_chopper_position.to(unit="m")
+        m_chopper_position = sc.mean(
+            sc.concat([chopper.distance for chopper in m_choppers], dim="num"),
+            dim="num",
+        ).to(unit="m")
+        m_chopper_max_freq = sc.max(
+            sc.concat([chopper.frequency for chopper in m_choppers], dim="num"),
+            dim="num",
+        )
+        delta_lambda = h_over_mn / m_chopper_max_freq / m_chopper_position
         # max of slow_down factors determines delta_lambda
-        delta_lambda *= np.max(self.chopper_slowdown)
+        slow_down = (
+            1 if self.chopper_slowdown is None else np.max(self.chopper_slowdown)
+        )
+        delta_lambda *= slow_down
         return delta_lambda.to(unit="Å")
 
     def calculate_incoming_wavelength_bounds(self) -> Tuple[sc.Variable, sc.Variable]:

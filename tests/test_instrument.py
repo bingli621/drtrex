@@ -6,6 +6,11 @@ from drtrex.sample import Sample
 from drtrex.components.source import Source
 
 
+def test_print(trex):
+    trex_str = str(trex)
+    assert ("84/-84" in trex_str) and ("112/-112" in trex_str)
+
+
 def test_calculate_delta_lambda():
 
     central_wavelength = sc.scalar(2.5, unit="Å")
