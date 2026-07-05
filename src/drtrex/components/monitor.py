@@ -1,3 +1,4 @@
+import numpy as np
 import tof
 import scipp as sc
 from drtrex.components.utils import centers_to_edges
@@ -65,6 +66,8 @@ class Monitor(tof.Detector):  # type: ignore
         toa_binned = event_masked.bin(toa=toa_edges).drop_coords("distance")
 
         weights = toa_binned.bins.sum()
+        if not np.all(weights.data.values):
+            raise ValueError(f"Zero weights in TOA of {self.name}")
         weighted_toa = (toa_binned.bins.data * toa_binned.bins.coords["toa"]).bins.sum()
         toa_centers = weighted_toa / weights
 
