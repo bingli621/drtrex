@@ -140,6 +140,10 @@ class Chopper(DiskChopper):
                 slow_down = 1 if chopper_slowdown is None else chopper_slowdown[2]
                 freq = source_frequency * rrm * 0.75 / slow_down * (-1)
 
+            case "Pulse Shaping Chopper 4":
+                slow_down = 1 if chopper_slowdown is None else chopper_slowdown[3]
+                freq = source_frequency * rrm * 0.75 / slow_down
+
             case "Monochromatic Chopper 1":
                 slow_down = 1 if chopper_slowdown is None else chopper_slowdown[-2]
                 freq = source_frequency * rrm / slow_down
