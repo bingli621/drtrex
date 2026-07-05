@@ -153,7 +153,7 @@ class Instrument(object):
             dim="num",
         ).to(unit="m")
         m_chopper_max_freq = sc.max(
-            sc.concat([chopper.frequency for chopper in m_choppers], dim="num"),
+            sc.concat([sc.abs(chopper.frequency) for chopper in m_choppers], dim="num"),
             dim="num",
         )
         delta_lambda = h_over_mn / m_chopper_max_freq / m_chopper_position
