@@ -9,7 +9,7 @@ from drtrex.components.utils import calculate_frame_at
 
 if TYPE_CHECKING:
     from drtrex.instrument import Instrument
-    from drtrex.params import ChopperParameters
+    from drtrex.params import ChopperDesign
 
 
 class Chopper(DiskChopper):
@@ -19,7 +19,7 @@ class Chopper(DiskChopper):
 
     @classmethod
     def from_parameters(
-        cls, parameters: "ChopperParameters", instrument: "Instrument"
+        cls, parameters: "ChopperDesign", instrument: "Instrument"
     ) -> "Chopper":
 
         frequency = cls._calculate_frequency(
@@ -76,7 +76,7 @@ class Chopper(DiskChopper):
 
     @staticmethod
     def _calculate_phase(
-        parameters: "ChopperParameters",
+        parameters: "ChopperDesign",
         frequency: sc.Variable,
         mode: str,
         wavelength: sc.Variable,
@@ -108,7 +108,7 @@ class Chopper(DiskChopper):
 
     @staticmethod
     def _calculate_frequency(
-        parameters: "ChopperParameters",
+        parameters: "ChopperDesign",
         rrm: int,
         source_frequency: sc.Variable,
         chopper_slowdown: tuple | None = None,
@@ -159,7 +159,7 @@ class Chopper(DiskChopper):
         return freq
 
     @staticmethod
-    def _calculate_slit_openings(parameters: "ChopperParameters"):
+    def _calculate_slit_openings(parameters: "ChopperDesign"):
         slit_begin = parameters.slit_center - 0.5 * parameters.slit_width
         slit_end = parameters.slit_center + 0.5 * parameters.slit_width
         return (slit_begin, slit_end)

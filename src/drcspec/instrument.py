@@ -79,11 +79,15 @@ class Instrument(object):
 
     @property
     def chopper_cascade(self) -> Dict:
-        time_limit = self._calculate_time_limit(
-            self.monitors["Beamstop Monitor"].distance
-        )
+        # time_limit = self._calculate_time_limit(
+        #     self.monitors["Beamstop Monitor"].distance
+        # )
+        # return {
+        #     name: chopper.to_chopper_cascade(time_limit)
+        #     for name, chopper in self.choppers.items()
+        # }
         return {
-            name: chopper.to_chopper_cascade(time_limit)
+            name: chopper.to_chopper_cascade()
             for name, chopper in self.choppers.items()
         }
 
@@ -100,14 +104,14 @@ class Instrument(object):
     # internal helpers
     # -----------------------------------------------------------------------
 
-    def _calculate_time_limit(self, distance):
-        """Time needed for the slowest incomnig beam out of the RRM to
-        propagate to a given distance, e.g. detector position."""
+    # def _calculate_time_limit(self, distance):
+    #     """Time needed for the slowest incomnig beam out of the RRM to
+    #     propagate to a given distance, e.g. detector position."""
 
-        wavelength_max = self.wavelength + self.calculate_delta_lambda() * self.rrm / 2
-        speed_min = tof.utils.wavelength_to_speed(wavelength_max)
-        time_max = distance / speed_min
-        return time_max
+    #     wavelength_max = self.wavelength + self.calculate_delta_lambda() * self.rrm / 2
+    #     speed_min = tof.utils.wavelength_to_speed(wavelength_max)
+    #     time_max = distance / speed_min
+    #     return time_max
 
     def _validate_component(self, component_name):
         component = (self.choppers | self.monitors | self.detectors).get(
@@ -130,26 +134,11 @@ class Instrument(object):
     def calculate_delta_lambda(self) -> sc.Variable:
         """Calculate step in wavelength selected by monochromatic choppers"""
 
-        m_choppers = []
-        for name, chopper in self.choppers.items():
-            if name.startswith("Monochromatic"):
-                m_choppers.append(chopper)
-
         h_over_mn = (const.Planck / const.m_n).to(unit="Å*m/s")  # 3956 Å*m/s
-        m_chopper_position = sc.mean(
-            sc.concat([chopper.distance for chopper in m_choppers], dim="num"),
-            dim="num",
-        ).to(unit="m")
-        m_chopper_max_freq = sc.max(
-            sc.concat([sc.abs(chopper.frequency) for chopper in m_choppers], dim="num"),
-            dim="num",
-        )
-        delta_lambda = h_over_mn / m_chopper_max_freq / m_chopper_position
-        # max of slow_down factors determines delta_lambda
-        slow_down = (
-            1 if self.chopper_slowdown is None else np.max(self.chopper_slowdown)
-        )
-        delta_lambda *= slow_down
+        rrm_chopper_position = self.choppers["RRM Chopper"].distance.to(unit="m")
+        rrm_chopper_freq = self.choppers["RRM Chopper"].frequency
+        delta_lambda = h_over_mn / rrm_chopper_freq / rrm_chopper_position
+
         return delta_lambda.to(unit="Å")
 
     def calculate_incoming_wavelength_bounds(self) -> Tuple[sc.Variable, sc.Variable]:

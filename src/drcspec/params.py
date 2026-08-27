@@ -107,64 +107,59 @@ chopper_params = [bw1, bw2, bw3, psc1, psc2, rrm, mc1, mc2]
 # ------------------------------------------------------------------
 
 
-# @dataclass()
-# class MonitorParameters:
-#     name: str
-#     distance: sc.Variable
+@dataclass()
+class MonitorParameters:
+    name: str
+    distance: sc.Variable
 
 
-# mon1 = MonitorParameters(
-#     distance=sc.scalar(41.98786, unit="m"),
-#     name="Monitor 1",
-# )
+mon0 = MonitorParameters(
+    distance=sc.scalar(6.0, unit="m"),
+    name="Monitor 0",
+)
+mon1 = MonitorParameters(
+    distance=sc.scalar(27.9, unit="m"),
+    name="Monitor 1",
+)
+mon2 = MonitorParameters(
+    distance=sc.scalar(105.6, unit="m"),
+    name="Monitor 2",
+)
 
+mon3 = MonitorParameters(
+    name="Monitor 3",
+    distance=sc.scalar(158.5, unit="m"),
+)
 
-# mon2 = MonitorParameters(
-#     name="Monitor 2",
-#     distance=sc.scalar(110.99, unit="m"),
-# )
+mon_sample = MonitorParameters(
+    name="Monitor at Sample",
+    distance=sc.scalar(160, unit="m"),
+)
 
+mon_beamstop = MonitorParameters(
+    name="Beamstop Monitor",
+    distance=sc.scalar(163.5, unit="m"),
+)
 
-# mon3 = MonitorParameters(
-#     name="Monitor 3",
-#     distance=sc.scalar(163.2, unit="m"),  # Tentative position of Beam monitor 3
-# )
-
-
-# mon_sample = MonitorParameters(
-#     name="Monitor at Sample",
-#     distance=sc.scalar(163.8, unit="m"),  # Source to sample in m
-# )
-
-# mon_beamstop = MonitorParameters(
-#     name="Beamstop Monitor",
-#     distance=sc.scalar(166.8, unit="m"),
-# )
-
-# monitor_params = [mon1, mon2, mon3, mon_sample, mon_beamstop]
-
-monitor_params = []
+monitor_params = [mon0, mon1, mon2, mon3, mon_sample, mon_beamstop]
 # ------------------------------------------------------------------
 # Detectors
 # ------------------------------------------------------------------
 
 
-# @dataclass()
-# class DetectorParameters:
-#     name: str
-#     distance: sc.Variable
+@dataclass()
+class DetectorParameters:
+    name: str
+    distance: sc.Variable
 
 
-# detector = DetectorParameters(
-#     name="Detector",
-#     distance=sc.scalar(166.8, unit="m"),
-# )
+detector = DetectorParameters(
+    name="Detector",
+    distance=sc.scalar(163.5, unit="m"),
+)
 
-# detector_params = [detector]
-detector_params = []
+detector_params = [detector]
 
 # ------------------------------------------------------------------
 # Other parameters
 # ------------------------------------------------------------------
-
-# DEL_L = sc.scalar(0.02, unit="m")  # Effective flight path uncertainty
