@@ -20,5 +20,5 @@ dependencies = [
     "pytest-cov>=7.1.0",
     "scipp>=26.3.1",
     "scippneutron>=26.6.0",
-    "tof>=26.6.1",
+    "tof>=26.7.0",
 ]
