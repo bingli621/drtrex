@@ -11,7 +11,7 @@ requires-python = ">=3.12"
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]
-platforms = ["osx-arm64"]
+platforms = ["osx-arm64","linux-64"]
 
 [tool.pixi.dependencies]
 h5py = ">=3.16.0"
