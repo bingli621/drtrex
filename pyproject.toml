@@ -25,6 +25,7 @@ scippneutron = ">=26.6.0"
 tof = ">=26.7.0"
 scipp = ">=25.12.0,<26"
 pytest = ">=9.1.1,<10"
+pytest-cov = ">=7.1.0,<8"
 
 
 [tool.pixi.pypi-dependencies]
