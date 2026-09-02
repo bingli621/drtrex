@@ -8,17 +8,26 @@ version = "0.1.2"
 description = "Data reduction for T-REX at ESS"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [
-    "h5py>=3.16.0",
-    "ipykernel<7",
-    "ipympl>=0.10.0",
-    "matplotlib>=3.10.8",
-    "numpy>=2.4.6",
-    "pip>=26.0.1",
-    "plopp>=26.4.2",
-    "pytest>=9.1.1",
-    "pytest-cov>=7.1.0",
-    "scipp>=26.3.1",
-    "scippneutron>=26.6.0",
-    "tof>=26.7.0",
-]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["osx-arm64"]
+
+[tool.pixi.dependencies]
+h5py = ">=3.16.0"
+ipykernel = "<7.0"
+ipympl = ">=0.10.0"
+matplotlib = ">=3.10.8"
+numpy = ">=2.4.6"
+pip = ">=26.0.1"
+plopp = ">=26.4.2"
+scippneutron = ">=26.6.0"
+tof = ">=26.7.0"
+scipp = ">=25.12.0,<26"
+pytest = ">=9.1.1,<10"
+
+
+[tool.pixi.pypi-dependencies]
+drtrex = { path = ".", editable = true }
+
+[tool.pixi.tasks]
